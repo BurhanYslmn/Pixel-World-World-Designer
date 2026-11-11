@@ -123,7 +123,7 @@
               <input id="outputWidth" type="number" value="2560" min="16" max="4096" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white">
             </label>
           </div>
-          <p id="sizeLabel" class="mt-2 text-xs text-slate-500">Varsayılan: 80 × 57 blok → 2560 × 1824 piksel</p>
+          <p id="sizeLabel" class="mt-2 text-xs text-slate-500">Varsayılan: 80 × 57 blok → 2560 × 1920 piksel</p>
           <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <button id="createGridBtn" type="button" class="rounded-lg bg-green-600 px-2 py-2.5 text-xs font-bold hover:bg-green-500 sm:text-sm"><span data-i18n="newWorld">New World</span></button>
             <label for="jsonInput" class="flex cursor-pointer items-center justify-center rounded-lg bg-slate-700 px-2 py-2.5 text-center text-xs font-bold hover:bg-slate-600 sm:text-sm"><span data-i18n="loadProject">Load Project</span></label>
@@ -164,7 +164,7 @@
           </div>
           <div id="canvasViewport" class="no-scrollbar relative h-[66dvh] min-h-[360px] max-h-[780px] overflow-auto rounded-xl border border-slate-700 bg-slate-950">
             <div id="canvasStage" class="relative min-h-full min-w-full">
-              <canvas id="resultCanvas" width="2560" height="1824" class="pixelated border border-slate-700 bg-slate-950" data-i18n-title="canvasTitle" title="World Designer canvas"></canvas>
+              <canvas id="resultCanvas" width="2560" height="1920" class="pixelated border border-slate-700 bg-slate-950" data-i18n-title="canvasTitle" title="World Designer canvas"></canvas>
               <div id="selectionOverlay" class="hidden"><span id="selectionCount"></span></div>
               <div id="clonePreview" class="hidden" aria-label="Clone preview">
                 <canvas id="clonePreviewCanvas" class="pixelated"></canvas>
@@ -391,13 +391,16 @@
       cols: clamp(parseInt(el.gridWidth.value, 10) || 80, 8, 128),
       rows: clamp(parseInt(el.gridHeight.value, 10) || 57, 8, 128)
     });
+    function outputHeight(cols, rows) {
+      return Math.max(1, Math.round(outputWidth() * (cols === 80 && rows === 57 ? 60 : rows) / cols));
+    }
     function updateSizeLabel() {
       const { cols, rows } = inputSize();
-      el.sizeLabel.textContent = t('sizeInfo', { cols, rows, width: outputWidth(), height: Math.round(outputWidth() * rows / cols) });
+      el.sizeLabel.textContent = t('sizeInfo', { cols, rows, width: outputWidth(), height: outputHeight(cols, rows) });
     }
     function setupCanvas() {
       el.resultCanvas.width = outputWidth();
-      el.resultCanvas.height = Math.max(1, Math.round(outputWidth() * state.rows / state.cols));
+      el.resultCanvas.height = outputHeight(state.cols, state.rows);
       ctx.imageSmoothingEnabled = false;
       requestAnimationFrame(() => fitCanvas(true));
     }
