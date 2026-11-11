@@ -78,6 +78,136 @@
       #toolsPanel .tool-label { display: none; }
       #toolsPanel .tool-btn { min-width: 0; padding-left: 0; padding-right: 0; }
     }
+
+    /* Compact mobile workspace: the canvas stays visible, menus slide over it. */
+    #mobileDock, #mobileBackdrop, #closeToolsPanelBtn,
+    #openSettingsBtn, #mobileUndoBtn { display: none; }
+    @media (max-width: 1023px) {
+      :root { --mobile-dock-height: 56px; --mobile-drawer-top: 110px; }
+      html, body { height: 100%; overflow: hidden; }
+      #app, body.app-fullscreen #app {
+        width: 100%; max-width: none; height: 100dvh; margin: 0;
+        padding: 5px 5px calc(var(--mobile-dock-height) + env(safe-area-inset-bottom));
+      }
+      #layout, body.app-fullscreen #layout { display: block; height: 100%; min-height: 0; }
+      #mainCard, body.app-fullscreen #mainCard {
+        display: flex; flex-direction: column; height: 100%; min-height: 0;
+        padding: 0; border: 0; box-shadow: none; background: transparent;
+      }
+      #title, #footer, #reportSection, #designer > p { display: none !important; }
+      #designer, body.app-fullscreen #designer {
+        display: flex; flex: 1 1 auto; flex-direction: column;
+        height: 100%; min-height: 0;
+      }
+      #designerHeader {
+        display: flex; flex-wrap: wrap; align-items: center;
+        justify-content: space-between; gap: 4px; padding: 6px;
+        margin-bottom: 5px; min-height: 40px;
+      }
+      #designerHeader > div:first-child { min-width: 90px; flex: 1 1 90px; }
+      #designerHeader strong { font-size: 12px; }
+      #selectionLabel { max-width: 100%; font-size: 10px; }
+      #designerHeader .designer-controls { gap: 3px; }
+      #designerHeader .designer-controls button {
+        min-height: 30px; padding: 5px 7px; font-size: 11px;
+      }
+      #openSettingsBtn, #mobileUndoBtn {
+        display: inline-flex; align-items: center; justify-content: center;
+      }
+      #canvasViewport, body.app-fullscreen #canvasViewport {
+        flex: 1 1 auto; min-height: 0; height: auto; max-height: none;
+      }
+      #mobileDock {
+        position: fixed; bottom: 0; left: 0; right: 0; z-index: 100;
+        display: flex; gap: 8px; align-items: flex-start;
+        height: calc(var(--mobile-dock-height) + env(safe-area-inset-bottom));
+        padding: 6px 9px calc(6px + env(safe-area-inset-bottom));
+        background: #0f172a; border-top: 1px solid #334155;
+      }
+      #mobileDock button {
+        flex: 1; height: 40px; border: 1px solid #475569;
+        border-radius: 10px; background: #1e293b;
+        color: #86efac; font-size: 12px; font-weight: 700;
+      }
+      #mobileDock button.selected-item { border-color: #22d3ee; }
+      #mobileBackdrop {
+        position: fixed; inset: 0; z-index: 60;
+        background: #02061766;
+      }
+      body.tools-panel-open #mobileBackdrop,
+      body.asset-panel-open #mobileBackdrop,
+      body.settings-panel-open #mobileBackdrop { display: block; }
+      #toolsPanel, body.app-fullscreen #toolsPanel, body.planner-mode #toolsPanel {
+        display: flex; flex-direction: column; overflow-y: auto;
+        position: fixed; z-index: 85;
+        top: var(--mobile-drawer-top); bottom: calc(var(--mobile-dock-height) + env(safe-area-inset-bottom) + 5px);
+        left: 6px; right: auto;
+        width: clamp(148px, 52vw, 230px); max-width: calc(100vw - 12px);
+        max-height: none; padding: 9px;
+        transform: translateX(calc(-100% - 16px));
+        opacity: 0; pointer-events: none;
+        transition: transform .18s ease, opacity .18s ease;
+      }
+      body.tools-panel-open #toolsPanel {
+        transform: translateX(0); opacity: 1; pointer-events: auto;
+      }
+      #toolsPanel h2 { font-size: 12px; }
+      #toolsButtons { grid-template-columns: 1fr; gap: 5px; margin-top: 8px; }
+      #toolsPanel .tool-btn { min-width: 0; min-height: 32px; padding: 5px 4px; font-size: 11px; }
+      #toolsPanel .tool-label { display: inline !important; }
+      #toolsPanel label { padding: 7px 4px; font-size: 10px; }
+      #toolsPanel p { font-size: 10px; line-height: 1.35; }
+      #usedAssetsSection { display: block; margin-top: 10px; }
+      #usedPalette { gap: 4px; margin-top: 6px; }
+      #usedPalette button { width: 30px; height: 30px; }
+      #closeToolsPanelBtn {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 28px; height: 28px; border-radius: 6px;
+        background: #334155; color: white; font-size: 20px;
+      }
+      body.planner-mode #assetPanel, body.app-fullscreen #assetPanel {
+        display: flex; flex-direction: column; overflow: hidden;
+        position: fixed; z-index: 85;
+        top: var(--mobile-drawer-top); bottom: calc(var(--mobile-dock-height) + env(safe-area-inset-bottom) + 5px);
+        left: auto; right: 6px;
+        width: clamp(175px, 60vw, 272px); max-width: calc(100vw - 12px);
+        height: auto; max-height: none; padding: 9px;
+        transform: translateX(calc(100% + 16px));
+        opacity: 0; pointer-events: none;
+        transition: transform .18s ease, opacity .18s ease;
+      }
+      body.planner-mode.asset-panel-open #assetPanel {
+        transform: translateX(0); opacity: 1; pointer-events: auto;
+      }
+      #assetPanel h2 { font-size: 12px; }
+      #assetCategories { gap: 4px; margin-top: 8px; }
+      #assetCategories button { padding: 6px 2px; font-size: 9px; line-height: 1.2; }
+      #assetPanel #assetSearch { padding: 7px; font-size: 11px; }
+      #assetPanel #assetGrid, body.planner-mode #assetGrid {
+        display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+        flex: 1 1 auto; align-content: start;
+        min-height: 0; gap: 5px; margin-top: 8px;
+        overflow-y: auto;
+      }
+      #assetPanel > div:last-child { margin-top: 6px; }
+      body.planner-mode #assetPanelToggle { display: none !important; }
+      #worldSettings {
+        display: none; position: fixed; z-index: 95;
+        top: var(--mobile-drawer-top); bottom: calc(var(--mobile-dock-height) + env(safe-area-inset-bottom) + 5px);
+        left: 8px; right: 8px; width: auto; max-width: 520px; margin: 0 auto;
+        overflow-y: auto; padding: 12px; box-shadow: 0 12px 32px #000c;
+      }
+      #worldSettings[open], body.app-fullscreen #worldSettings[open] { display: block !important; }
+    }
+    @media (max-width: 1023px) and (orientation: landscape) {
+      :root { --mobile-dock-height: 49px; }
+      #designerHeader { flex-wrap: nowrap; padding: 4px 7px; min-height: 38px; }
+      #designerHeader .designer-controls button { padding: 4px 8px; min-height: 28px; }
+      #mobileDock { padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
+      #mobileDock button { height: 36px; }
+      #toolsPanel, body.app-fullscreen #toolsPanel { width: min(220px, 42vw); }
+      body.planner-mode #assetPanel, body.app-fullscreen #assetPanel { width: min(250px, 43vw); }
+    }
   </style>
 </head>
 <body class="planner-mode m-0 overflow-x-hidden bg-slate-950 font-sans text-white">
@@ -86,11 +216,14 @@
       <aside id="toolsPanel" class="rounded-2xl border border-slate-700 bg-slate-900 p-3 shadow-xl lg:sticky lg:top-3 lg:max-h-[calc(100dvh-1.5rem)] lg:overflow-y-auto">
         <div class="flex items-center justify-between gap-2 border-b border-slate-700 pb-2">
           <h2 class="text-sm font-bold text-green-400 sm:text-base">🛠 <span data-i18n="tools">Tools</span></h2>
-          <select id="languageSelect" aria-label="Language / Dil" class="rounded-lg border border-slate-700 bg-slate-950 p-1.5 text-xs font-bold text-slate-100">
-            <option value="tr">TR</option><option value="en">EN</option>
-          </select>
+          <div class="flex items-center gap-1">
+            <select id="languageSelect" aria-label="Language / Dil" class="rounded-lg border border-slate-700 bg-slate-950 p-1.5 text-xs font-bold text-slate-100">
+              <option value="tr">TR</option><option value="en">EN</option>
+            </select>
+            <button id="closeToolsPanelBtn" type="button" data-i18n-aria="close" aria-label="Close" title="Close">×</button>
+          </div>
         </div>
-        <div class="mt-3 grid grid-cols-5 gap-1.5 lg:grid-cols-1 lg:gap-2">
+        <div id="toolsButtons" class="mt-3 grid grid-cols-5 gap-1.5 lg:grid-cols-1 lg:gap-2">
           <button id="panBtn" type="button" class="tool-btn rounded-lg border-2 border-transparent bg-slate-700 px-2 py-3 text-xs font-bold hover:bg-slate-600 sm:text-sm" data-i18n-title="moveTitle" title="Move / Pan" data-i18n-aria="move" aria-label="Move">✋ <span class="tool-label" data-i18n="move">Move</span></button>
           <button id="eraserBtn" type="button" class="tool-btn rounded-lg border-2 border-transparent bg-slate-700 px-2 py-3 text-xs font-bold hover:bg-slate-600 sm:text-sm" data-i18n-title="eraser" title="Eraser" data-i18n-aria="eraser" aria-label="Eraser">🧹 <span class="tool-label" data-i18n="eraser">Eraser</span></button>
           <button id="pickerBtn" type="button" class="tool-btn rounded-lg border-2 border-transparent bg-slate-700 px-2 py-3 text-xs font-bold hover:bg-slate-600 sm:text-sm" data-i18n-title="pickerTitle" title="Color Picker" data-i18n-aria="pickerTitle" aria-label="Color Picker">💧 <span class="tool-label" data-i18n="picker">Picker</span></button>
@@ -102,7 +235,7 @@
           <span data-i18n="stackBlocks">Stack Blocks</span>
         </label>
         <p class="mt-2 text-xs text-slate-400" data-i18n="cloneHelp">Clone: drag to select, position the copy, then confirm with ✓.</p>
-        <div class="mt-4 hidden lg:block">
+        <div id="usedAssetsSection" class="mt-4 hidden lg:block">
           <h2 class="border-b border-slate-700 pb-2 text-sm font-bold text-green-400" data-i18n="usedAssets">Used Assets</h2>
           <div id="usedPalette" class="mt-3 flex flex-wrap gap-2"></div>
         </div>
@@ -155,11 +288,13 @@
               <strong class="block text-sm text-slate-200 sm:text-base" data-i18n="designer">World Designer</strong>
               <span id="selectionLabel" class="block max-w-[65vw] truncate text-xs text-slate-500" role="status">Katalogdan bir görsel seçin.</span>
             </div>
-            <div class="flex flex-wrap items-center justify-end gap-1.5">
+            <div class="designer-controls flex flex-wrap items-center justify-end gap-1.5">
+              <button id="mobileUndoBtn" type="button" class="rounded-lg bg-slate-700 px-2 py-2 text-sm font-bold" data-i18n-aria="undo" aria-label="Undo">↶</button>
               <button id="zoomOutBtn" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-sm font-bold hover:bg-slate-600" data-i18n-aria="zoomOut" aria-label="Zoom out">−</button>
               <button id="fitBtn" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-xs font-bold hover:bg-slate-600"><span data-i18n="fit">Fit</span></button>
               <button id="zoomInBtn" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-sm font-bold hover:bg-slate-600" data-i18n-aria="zoomIn" aria-label="Zoom in">+</button>
               <button id="fullscreenBtn" type="button" class="rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold hover:bg-sky-500 sm:text-sm">⛶ <span data-i18n="fullscreen">Fullscreen</span></button>
+              <button id="openSettingsBtn" type="button" class="rounded-lg bg-slate-700 px-2 py-2 text-sm font-bold" data-i18n-title="settings" data-i18n-aria="settings" aria-label="Settings" title="Settings">⚙</button>
             </div>
           </div>
           <div id="canvasViewport" class="no-scrollbar relative h-[66dvh] min-h-[360px] max-h-[780px] overflow-auto rounded-xl border border-slate-700 bg-slate-950">
@@ -213,6 +348,11 @@
         </div>
       </aside>
     </div>
+    <div id="mobileBackdrop" aria-hidden="true"></div>
+    <nav id="mobileDock" aria-label="World Designer panels">
+      <button id="mobileToolsBtn" type="button" aria-controls="toolsPanel" aria-expanded="false">🛠 <span data-i18n="tools">Tools</span></button>
+      <button id="mobileAssetsBtn" type="button" aria-controls="assetPanel" aria-expanded="false">🧱 <span data-i18n="assetsShort">Assets</span></button>
+    </nav>
   </div>
   <button id="assetPanelToggle" type="button" class="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-3 z-50 hidden items-center gap-2 rounded-full bg-cyan-600 px-4 py-3 text-sm font-bold shadow-2xl hover:bg-cyan-500">🧱 <span data-i18n="assetsShort">Assets</span></button>
   <script src="./assets-manifest.js"></script>
@@ -233,6 +373,7 @@
     };
     const el = Object.fromEntries([
       'app', 'toolsPanel', 'languageSelect', 'panBtn', 'eraserBtn', 'pickerBtn', 'cloneBtn', 'undoBtn',
+      'mobileDock', 'mobileBackdrop', 'mobileToolsBtn', 'mobileAssetsBtn', 'closeToolsPanelBtn', 'openSettingsBtn', 'mobileUndoBtn', 'worldSettings',
       'stackToggle', 'usedPalette', 'gridWidth', 'gridHeight', 'outputWidth', 'sizeLabel',
       'createGridBtn', 'jsonInput', 'saveImageBtn', 'saveProjectBtn',
       'blockInput', 'blockPreview', 'uploadCategory', 'worldBackgroundInput',
@@ -247,7 +388,7 @@
     const manifest = window.PIXEL_WORLDS_ASSETS || {};
     const images = new Map();
     const state = {
-      cols: 80, rows: 57, map: [], zoom: 1,
+      cols: 80, rows: 57, map: [], zoom: 1, autoFill: false,
       assets: [], uploads: [], byId: new Map(), bySrc: new Map(),
       brush: 'pan', worldAsset: null, customWorld: null,
       category: 'blocks', page: 0, search: '',
@@ -397,6 +538,14 @@
     function updateSizeLabel() {
       const { cols, rows } = inputSize();
       el.sizeLabel.textContent = t('sizeInfo', { cols, rows, width: outputWidth(), height: outputHeight(cols, rows) });
+    }
+    function mobileCoverZoom() {
+      if (!isCompact()) return 1;
+      const viewport = el.canvasViewport;
+      const width = el.resultCanvas.width, height = el.resultCanvas.height;
+      const fit = Math.min(viewport.clientWidth / width, viewport.clientHeight / height);
+      const fill = Math.max(viewport.clientWidth / width, viewport.clientHeight / height);
+      return fit > 0 ? fill / fit : 1;
     }
     function setupCanvas() {
       el.resultCanvas.width = outputWidth();
@@ -588,8 +737,10 @@
       renderAssetPanel();
     }
     function updateUndoButton() {
-      el.undoBtn.classList.toggle('disabled-tool', !state.undo.length);
-      el.undoBtn.disabled = !state.undo.length;
+      for (const button of [el.undoBtn, el.mobileUndoBtn]) {
+        button.classList.toggle('disabled-tool', !state.undo.length);
+        button.disabled = !state.undo.length;
+      }
     }
     function beginStroke() { state.stroke = new Map(); state.lastCell = ''; }
     function rememberCell(x, y) {
@@ -787,6 +938,8 @@
       el.worldBackgroundInput.value = '';
       resetSelection();
       setupCanvas();
+      state.autoFill = isCompact();
+      if (state.autoFill) state.zoom = mobileCoverZoom();
       requestRender();
       selectTool('pan');
       renderDataPanels();
@@ -847,6 +1000,8 @@
         }
         resetSelection();
         setupCanvas();
+        state.autoFill = isCompact();
+        if (state.autoFill) state.zoom = mobileCoverZoom();
         requestRender();
         selectTool('pan');
         renderUploads();
@@ -948,10 +1103,42 @@
       requestRender();
       renderAssetPanel();
     }
+    const isCompact = () => matchMedia('(max-width: 1023px)').matches;
+    function updateMobileDock() {
+      for (const [button, name] of [[el.mobileToolsBtn, 'tools'], [el.mobileAssetsBtn, 'asset']]) {
+        const open = document.body.classList.contains(`${name}-panel-open`);
+        button.classList.toggle('selected-item', open);
+        button.setAttribute('aria-expanded', String(open));
+      }
+    }
+    function closeMobilePanels() {
+      document.body.classList.remove('tools-panel-open', 'asset-panel-open', 'settings-panel-open');
+      el.worldSettings.open = false;
+      updateMobileDock();
+    }
+    function toggleMobilePanel(name) {
+      const active = document.body.classList.contains(`${name}-panel-open`);
+      closeMobilePanels();
+      if (!active) {
+        document.body.classList.add(`${name}-panel-open`);
+        if (name === 'settings') el.worldSettings.open = true;
+      }
+      updateMobileDock();
+    }
     function toggleAssetPanel(open) {
-      document.body.classList.toggle('asset-panel-open', open);
+      if (isCompact()) {
+        if (open) { closeMobilePanels(); document.body.classList.add('asset-panel-open'); }
+        else document.body.classList.remove('asset-panel-open');
+        updateMobileDock();
+      } else document.body.classList.toggle('asset-panel-open', open);
+    }
+    function syncMobileLayout() {
+      if (!isCompact()) return;
+      const bottom = el.designerHeader.getBoundingClientRect().bottom;
+      document.documentElement.style.setProperty('--mobile-drawer-top', `${Math.max(45, Math.ceil(bottom + 5))}px`);
     }
     function setZoom(value, center = false) {
+      state.autoFill = false;
       state.zoom = clamp(value, .12, 12);
       fitCanvas(center);
       requestRender();
@@ -962,6 +1149,7 @@
       const fractionY = clamp((clientY - old.top) / Math.max(1, old.height), 0, 1);
       const next = clamp(state.zoom * factor, .12, 12);
       if (next === state.zoom) return;
+      state.autoFill = false;
       state.zoom = next;
       fitCanvas(false);
       requestAnimationFrame(() => {
@@ -975,7 +1163,10 @@
       const full = Boolean(document.fullscreenElement || state.fallbackFullscreen);
       document.body.classList.toggle('app-fullscreen', full);
       el.fullscreenBtn.textContent = `⛶ ${t(full ? 'exitFullscreen' : 'fullscreen')}`;
-      requestAnimationFrame(() => fitCanvas(true));
+      requestAnimationFrame(() => {
+        if (state.autoFill) state.zoom = mobileCoverZoom();
+        fitCanvas(true); syncMobileLayout();
+      });
     }
     function toggleFullscreen() {
       if (document.fullscreenElement || state.fallbackFullscreen) {
@@ -1008,6 +1199,7 @@
       if (!state.pinch || state.pointers.size < 2) return;
       const [a, b] = [...state.pointers.values()];
       const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      state.autoFill = false;
       state.zoom = clamp(state.pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y) / state.pinch.distance, .12, 12);
       fitCanvas(false);
       const pinch = state.pinch;
@@ -1189,10 +1381,9 @@
     });
     el.saveProjectBtn.addEventListener('click', saveProject);
     el.saveImageBtn.addEventListener('click', saveImage);
-    el.panBtn.addEventListener('click', () => selectTool('pan'));
-    el.eraserBtn.addEventListener('click', () => selectTool('eraser'));
-    el.pickerBtn.addEventListener('click', () => selectTool('picker'));
-    el.cloneBtn.addEventListener('click', () => selectTool('clone'));
+    for (const [button, tool] of [[el.panBtn,'pan'], [el.eraserBtn,'eraser'], [el.pickerBtn,'picker'], [el.cloneBtn,'clone']]) {
+      button.addEventListener('click', () => { selectTool(tool); if (isCompact()) closeMobilePanels(); });
+    }
     el.languageSelect.addEventListener('change', () => {
       state.lang = el.languageSelect.value === 'en' ? 'en' : 'tr';
       applyLanguage();
@@ -1204,6 +1395,18 @@
     el.confirmCloneBtn.addEventListener('click', event => { event.stopPropagation(); confirmClone(); });
     el.cancelCloneBtn.addEventListener('click', event => { event.stopPropagation(); cancelClone(); });
     el.undoBtn.addEventListener('click', undo);
+    el.mobileUndoBtn.addEventListener('click', undo);
+    el.mobileToolsBtn.addEventListener('click', () => toggleMobilePanel('tools'));
+    el.mobileAssetsBtn.addEventListener('click', () => toggleMobilePanel('asset'));
+    el.closeToolsPanelBtn.addEventListener('click', closeMobilePanels);
+    el.mobileBackdrop.addEventListener('click', closeMobilePanels);
+    el.openSettingsBtn.addEventListener('click', () => toggleMobilePanel('settings'));
+    el.worldSettings.addEventListener('toggle', () => {
+      if (isCompact() && !el.worldSettings.open) {
+        document.body.classList.remove('settings-panel-open');
+        updateMobileDock();
+      }
+    });
     el.blockInput.addEventListener('change', async event => {
       if (event.target.files.length) await addUploads(event.target.files);
       event.target.value = '';
@@ -1226,7 +1429,10 @@
     });
     el.usedPalette.addEventListener('click', event => {
       const item = event.target.closest('[data-used-src]');
-      if (item) selectAsset(state.bySrc.get(item.dataset.usedSrc));
+      if (item) {
+        selectAsset(state.bySrc.get(item.dataset.usedSrc));
+        if (isCompact()) closeMobilePanels();
+      }
     });
     el.assetCategories.addEventListener('click', event => {
       const button = event.target.closest('[data-category]');
@@ -1237,7 +1443,10 @@
     });
     el.assetGrid.addEventListener('click', event => {
       const item = event.target.closest('[data-asset-id]');
-      if (item) selectAsset(state.byId.get(item.dataset.assetId));
+      if (item) {
+        selectAsset(state.byId.get(item.dataset.assetId));
+        if (isCompact()) toggleAssetPanel(false);
+      }
     });
     el.assetSearch.addEventListener('input', () => {
       state.search = el.assetSearch.value;
@@ -1271,17 +1480,29 @@
         event.preventDefault(); undo();
       }
       if (event.key === 'Escape') {
+        if (isCompact() && (document.body.classList.contains('tools-panel-open') || document.body.classList.contains('asset-panel-open') || document.body.classList.contains('settings-panel-open'))) {
+          closeMobilePanels(); return;
+        }
         if (state.fallbackFullscreen) { state.fallbackFullscreen = false; syncFullscreen(); }
         else if (state.brush === 'clone') resetSelection();
       }
     });
-    window.addEventListener('resize', () => requestAnimationFrame(() => fitCanvas(false)));
+    window.addEventListener('resize', () => requestAnimationFrame(() => {
+      if (!isCompact()) closeMobilePanels();
+      if (state.autoFill) state.zoom = isCompact() ? mobileCoverZoom() : 1;
+      fitCanvas(state.autoFill); syncMobileLayout();
+    }));
+    window.addEventListener('orientationchange', () => requestAnimationFrame(() => {
+      if (state.autoFill) state.zoom = mobileCoverZoom();
+      fitCanvas(true); syncMobileLayout();
+    }));
     if ('ResizeObserver' in window) new ResizeObserver(() => fitCanvas(false)).observe(el.canvasViewport);
 
     renderAssetPanel();
     renderUploads();
     createWorld(false);
     applyLanguage();
+    requestAnimationFrame(syncMobileLayout);
   </script>
 </body>
 </html>
