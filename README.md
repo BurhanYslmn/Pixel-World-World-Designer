@@ -16,7 +16,7 @@ A free, browser-based world designer for Pixel Worlds.
 
 | Özellik | Açıklama |
 |---|---|
-| 🌍 Dünya Boyutu | Varsayılan 80 × 57 blok (2560 × 1824 px). Manuel değiştirilebilir. |
+| 🌍 Dünya Boyutu | Varsayılan 80 × 57 blok (2560 × 1920 px). Manuel değiştirilebilir. |
 | 🧱 Katalog | Blocks, Backgrounds, Props ve Worlds kategorileri. |
 | 🎨 Tasarım | Blok yerleştirme, silme, kopyalama ve katman oluşturma. |
 | 📋 Klonlama | Seçilen alanı kopyalama, taşıma ve onaylayarak yerleştirme. |
