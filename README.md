@@ -53,7 +53,7 @@ A free, browser-based world designer for Pixel Worlds.
 
 | Feature | Description |
 |---|---|
-| 🌍 World Size | Default 80 × 57 blocks (2560 × 1824 px). Customizable. |
+| 🌍 World Size | Default 80 × 57 blocks (2560 × 1920 px). Customizable. |
 | 🧱 Catalog | Blocks, Backgrounds, Props, and Worlds categories. |
 | 🎨 Building | Place, erase, copy, and layer assets. |
 | 📋 Cloning | Select, move, preview, and confirm copied areas. |
