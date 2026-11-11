@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#020617">
+  <title>Pixel Worlds | World Designer</title>
+  <link rel="stylesheet" href="./styles.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .pixelated { image-rendering: pixelated; }
+    .selected-item { border-color: #22d3ee !important; box-shadow: 0 0 0 2px #22d3ee55; }
+    .disabled-tool { opacity: .4; pointer-events: none; }
+    #designer { display: flex; flex-direction: column; width: 100%; }
+    #designerHeader { flex: 0 0 auto; }
+    #canvasViewport { touch-action: none; overscroll-behavior: contain; width: 100%; min-width: 0; flex: 0 0 auto; }
+    #resultCanvas { position: absolute; touch-action: none; user-select: none; -webkit-user-select: none; }
+    #canvasViewport.is-panning { cursor: grabbing; }
+    #selectionOverlay {
+      position: absolute; pointer-events: none; z-index: 3;
+      border: 2px solid #22d3ee; background: #008cff33;
+      box-shadow: inset 0 0 0 1px #0c4a6e, 0 0 10px #22d3ee55;
+    }
+    #selectionOverlay span {
+      position: absolute; top: 0; left: 0; transform: translateY(-100%);
+      background: #0891b2; color: white; padding: 2px 5px;
+      font: bold 11px sans-serif; white-space: nowrap;
+    }
+    #clonePreview {
+      position: absolute; z-index: 5; pointer-events: none;
+      border: 2px dashed #34d399; background: #10b98122;
+      box-shadow: 0 0 0 2px #064e3b, 0 0 18px #34d39988;
+    }
+    #clonePreviewCanvas { display: block; width: 100%; height: 100%; opacity: .78; image-rendering: pixelated; }
+    #clonePreviewActions { position: absolute; top: -39px; left: calc(100% + 6px); display: flex; gap: 6px; pointer-events: auto; }
+    #clonePreviewActions button { display: grid; place-items: center; height: 34px; width: 38px;
+      border: 1px solid #ffffff66; border-radius: 8px; color: #fff; font: 800 20px sans-serif;
+      box-shadow: 0 2px 10px #000b; cursor: pointer; touch-action: manipulation; }
+    #confirmCloneBtn { background: #059669; }
+    #cancelCloneBtn { background: #be123c; }
+    #assetPanel { transition: transform .2s ease; }
+    #assetPanel #assetGrid { min-height: 0; }
+    @media (min-width: 640px) { #dimensionsGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+    body.app-fullscreen { overflow: hidden; }
+    body.app-fullscreen #app { width: 100vw; max-width: none; height: 100dvh; padding: .5rem; }
+    body.app-fullscreen #layout { height: 100%; }
+    body.app-fullscreen #mainCard { height: 100%; padding: .5rem; }
+    body.app-fullscreen #title,
+    body.app-fullscreen #worldSettings,
+    body.app-fullscreen #reportSection,
+    body.app-fullscreen #footer { display: none !important; }
+    body.app-fullscreen #designer { display: flex; height: 100%; flex-direction: column; }
+    body.app-fullscreen #designerHeader { flex: 0 0 auto; }
+    body.app-fullscreen #canvasViewport { flex: 1 1 auto; height: auto; min-height: 0; max-height: none; }
+    body.app-fullscreen #toolsPanel,
+    body.app-fullscreen #assetPanel { max-height: calc(100dvh - 1rem); }
+    @media (max-width: 1023px) {
+      body.planner-mode #assetPanel {
+        display: flex; flex-direction: column; overflow: hidden;
+        position: fixed; left: .5rem; right: .5rem;
+        bottom: max(.5rem, env(safe-area-inset-bottom)); z-index: 70;
+        max-height: min(72dvh, 620px);
+        transform: translateY(calc(100% + 1.5rem));
+        box-shadow: 0 -18px 45px #0009;
+      }
+      body.planner-mode #assetGrid { flex: 1 1 auto; overflow-y: auto; min-height: 100px; }
+      body.planner-mode #assetPanel > :not(#assetGrid) { flex: 0 0 auto; }
+      body.planner-mode.asset-panel-open #assetPanel { transform: translateY(0); }
+      body.planner-mode #assetPanelToggle { display: flex; }
+      body.planner-mode.asset-panel-open #assetPanelToggle { display: none; }
+      body.app-fullscreen #toolsPanel { position: absolute; left: .5rem; right: .5rem; top: .5rem; z-index: 40; }
+      body.app-fullscreen #mainCard { padding-top: 7.75rem; }
+    }
+    @media (max-width: 480px) {
+      #toolsPanel .tool-label { display: none; }
+      #toolsPanel .tool-btn { min-width: 0; padding-left: 0; padding-right: 0; }
+    }
+  </style>
+</head>
+<body class="planner-mode m-0 overflow-x-hidden bg-slate-950 font-sans text-white">
+  <div id="app" class="mx-auto w-full max-w-[1900px] p-2 sm:p-3">
+    <div id="layout" class="grid grid-cols-1 gap-3 lg:grid-cols-[190px_minmax(0,1fr)_300px] xl:grid-cols-[220px_minmax(0,1fr)_320px]">
+      <aside id="toolsPanel" class="rounded-2xl border border-slate-700 bg-slate-900 p-3 shadow-xl lg:sticky lg:top-3 lg:max-h-[calc(100dvh-1.5rem)] lg:overflow-y-auto">
+        <div class="flex items-center justify-between gap-2 border-b border-slate-700 pb-2">
+          <h2 class="text-sm font-bold text-green-400 sm:text-base">🛠 <span data-i18n="tools">Tools</span></h2>
+          <select id="languageSelect" aria-label="Language / Dil" class="rounded-lg border border-slate-700 bg-slate-950 p-1.5 text-xs font-bold text-slate-100">
+            <option value="tr">TR</option><option value="en">EN</option>
+          </select>
+        </div>
+        <div class="mt-3 grid grid-cols-5 gap-1.5 lg:grid-cols-1 lg:gap-2">
+          <button id="panBtn" type="button" class="tool-btn rounded-lg border-2 border-transparent bg-slate-700 px-2 py-3 text-xs font-bold hover:bg-slate-600 sm:text-sm" data-i18n-title="moveTitle" title="Move / Pan" data-i18n-aria="move" aria-label="Move">✋ <span class="tool-label" data-i18n="move">Move</span></button>
+          <button id="eraserBtn" type="button" class="tool-btn rounded-lg border-2 border-transparent bg-slate-700 px-2 py-3 text-xs font-bold hover:bg-slate-600 sm:text-sm" data-i18n-title="eraser" title="Eraser" data-i18n-aria="eraser" aria-label="Eraser">🧹 <span class="tool-label" data-i18n="eraser">Eraser</span></button>
+          <button id="pickerBtn" type="button" class="tool-btn rounded-lg border-2 border-transparent bg-slate-700 px-2 py-3 text-xs font-bold hover:bg-slate-600 sm:text-sm" data-i18n-title="pickerTitle" title="Color Picker" data-i18n-aria="pickerTitle" aria-label="Color Picker">💧 <span class="tool-label" data-i18n="picker">Picker</span></button>
+          <button id="cloneBtn" type="button" class="tool-btn rounded-lg border-2 border-transparent bg-slate-700 px-2 py-3 text-xs font-bold hover:bg-slate-600 sm:text-sm" data-i18n-title="cloneTitle" title="Select and clone area" data-i18n-aria="cloneTitle" aria-label="Clone area">▣ <span class="tool-label" data-i18n="clone">Clone</span></button>
+          <button id="undoBtn" type="button" class="tool-btn disabled-tool rounded-lg border-2 border-transparent bg-slate-700 px-2 py-3 text-xs font-bold hover:bg-slate-600 sm:text-sm" data-i18n-title="undoTitle" title="Undo / Ctrl+Z" data-i18n-aria="undo" aria-label="Undo">↶ <span class="tool-label" data-i18n="undo">Undo</span></button>
+        </div>
+        <label class="mt-2 flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-2 py-3 text-xs font-semibold text-slate-300 lg:justify-start sm:text-sm">
+          <input id="stackToggle" type="checkbox" class="h-4 w-4 accent-cyan-500">
+          <span data-i18n="stackBlocks">Stack Blocks</span>
+        </label>
+        <p class="mt-2 text-xs text-slate-400" data-i18n="cloneHelp">Clone: drag to select, position the copy, then confirm with ✓.</p>
+        <div class="mt-4 hidden lg:block">
+          <h2 class="border-b border-slate-700 pb-2 text-sm font-bold text-green-400" data-i18n="usedAssets">Used Assets</h2>
+          <div id="usedPalette" class="mt-3 flex flex-wrap gap-2"></div>
+        </div>
+      </aside>
+
+      <main id="mainCard" class="min-w-0 rounded-2xl border border-slate-800 bg-slate-900 p-3 shadow-2xl sm:p-4">
+        <h1 id="title" class="mb-4 text-center text-xl font-bold text-green-400 sm:text-2xl">Pixel Worlds — <span data-i18n="designer">World Designer</span></h1>
+        <details id="worldSettings" class="mb-3 rounded-xl border border-slate-700 bg-slate-950 p-3">
+          <summary class="cursor-pointer text-sm font-bold text-slate-200" data-i18n="settings">World Settings &amp; Project</summary>
+          <div id="dimensionsGrid" class="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <label class="text-xs font-bold text-slate-300"><span data-i18n="widthBlocks">Width (Blocks)</span>
+              <input id="gridWidth" type="number" value="80" min="8" max="128" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white">
+            </label>
+            <label class="text-xs font-bold text-slate-300"><span data-i18n="heightBlocks">Height (Blocks)</span>
+              <input id="gridHeight" type="number" value="57" min="8" max="128" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white">
+            </label>
+            <label class="col-span-2 text-xs font-bold text-slate-300 sm:col-span-1"><span data-i18n="outputWidth">Output Width (px)</span>
+              <input id="outputWidth" type="number" value="2560" min="16" max="4096" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white">
+            </label>
+          </div>
+          <p id="sizeLabel" class="mt-2 text-xs text-slate-500">Varsayılan: 80 × 57 blok → 2560 × 1824 piksel</p>
+          <div class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <button id="createGridBtn" type="button" class="rounded-lg bg-green-600 px-2 py-2.5 text-xs font-bold hover:bg-green-500 sm:text-sm"><span data-i18n="newWorld">New World</span></button>
+            <label for="jsonInput" class="flex cursor-pointer items-center justify-center rounded-lg bg-slate-700 px-2 py-2.5 text-center text-xs font-bold hover:bg-slate-600 sm:text-sm"><span data-i18n="loadProject">Load Project</span></label>
+            <input id="jsonInput" type="file" accept=".json,application/json" class="hidden">
+            <button id="saveProjectBtn" type="button" class="rounded-lg bg-sky-600 px-2 py-2.5 text-xs font-bold hover:bg-sky-500 sm:text-sm"><span data-i18n="saveProject">Save Project</span></button>
+            <button id="saveImageBtn" type="button" class="rounded-lg bg-sky-600 px-2 py-2.5 text-xs font-bold hover:bg-sky-500 sm:text-sm"><span data-i18n="savePNG">Save PNG</span></button>
+          </div>
+          <div class="mt-3 flex flex-wrap items-end gap-2">
+            <label class="min-w-0 flex-1 text-xs font-bold text-slate-300"><span data-i18n="uploadImages">Upload Custom Images</span>
+              <input id="blockInput" type="file" accept="image/*" multiple class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 text-xs text-slate-300 file:mr-2 file:border-0 file:bg-slate-700 file:px-2 file:py-2 file:text-white">
+            </label>
+            <label class="w-32 text-xs font-bold text-slate-300"><span data-i18n="category">Category</span>
+              <select id="uploadCategory" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-2 py-2 text-xs text-white">
+                <option value="blocks" data-i18n="catBlocks">Blocks</option>
+                <option value="backgrounds" data-i18n="catBackgrounds">Backgrounds</option>
+                <option value="props" data-i18n="catProps">Props</option>
+              </select>
+            </label>
+          </div>
+          <div id="blockPreview" class="no-scrollbar mt-2 flex max-h-28 flex-wrap gap-2 overflow-y-auto"></div>
+          <label class="mt-2 block text-xs font-bold text-slate-300"><span data-i18n="customBG">Custom World Background (Optional)</span>
+            <input id="worldBackgroundInput" type="file" accept="image/*" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 text-xs text-slate-300 file:mr-2 file:border-0 file:bg-slate-700 file:px-2 file:py-2 file:text-white">
+          </label>
+        </details>
+
+        <section id="designer" class="flex min-w-0 flex-col">
+          <div id="designerHeader" class="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-700 bg-slate-950 p-2 sm:p-3">
+            <div class="min-w-0">
+              <strong class="block text-sm text-slate-200 sm:text-base" data-i18n="designer">World Designer</strong>
+              <span id="selectionLabel" class="block max-w-[65vw] truncate text-xs text-slate-500" role="status">Katalogdan bir görsel seçin.</span>
+            </div>
+            <div class="flex flex-wrap items-center justify-end gap-1.5">
+              <button id="zoomOutBtn" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-sm font-bold hover:bg-slate-600" data-i18n-aria="zoomOut" aria-label="Zoom out">−</button>
+              <button id="fitBtn" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-xs font-bold hover:bg-slate-600"><span data-i18n="fit">Fit</span></button>
+              <button id="zoomInBtn" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-sm font-bold hover:bg-slate-600" data-i18n-aria="zoomIn" aria-label="Zoom in">+</button>
+              <button id="fullscreenBtn" type="button" class="rounded-lg bg-sky-600 px-3 py-2 text-xs font-bold hover:bg-sky-500 sm:text-sm">⛶ <span data-i18n="fullscreen">Fullscreen</span></button>
+            </div>
+          </div>
+          <div id="canvasViewport" class="no-scrollbar relative h-[66dvh] min-h-[360px] max-h-[780px] overflow-auto rounded-xl border border-slate-700 bg-slate-950">
+            <div id="canvasStage" class="relative min-h-full min-w-full">
+              <canvas id="resultCanvas" width="2560" height="1824" class="pixelated border border-slate-700 bg-slate-950" data-i18n-title="canvasTitle" title="World Designer canvas"></canvas>
+              <div id="selectionOverlay" class="hidden"><span id="selectionCount"></span></div>
+              <div id="clonePreview" class="hidden" aria-label="Clone preview">
+                <canvas id="clonePreviewCanvas" class="pixelated"></canvas>
+                <div id="clonePreviewActions">
+                  <button id="confirmCloneBtn" type="button" data-i18n-title="confirmClone" title="Confirm clone" data-i18n-aria="confirmClone" aria-label="Confirm clone">✓</button>
+                  <button id="cancelCloneBtn" type="button" data-i18n-title="cancelClone" title="Cancel clone" data-i18n-aria="cancelClone" aria-label="Cancel clone">×</button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p class="mt-2 text-center text-[11px] text-slate-500 lg:hidden" data-i18n="mobileHelp">Tap to draw. Drag with Move to pan. Pinch to zoom. Clone: drag to select, then confirm ✓.</p>
+        </section>
+
+        <section id="reportSection" class="mt-5 hidden rounded-xl border border-slate-700 bg-slate-950 p-4">
+          <h2 class="border-b border-slate-700 pb-2 text-sm font-bold text-green-400" data-i18n="usedAssets">Used Assets</h2>
+          <div id="reportGrid" class="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6"></div>
+        </section>
+        <footer id="footer" class="mt-6 border-t border-slate-700 pt-5 text-center">
+          <p class="text-sm text-slate-400"><span data-i18n="madeBy">Made By</span>: <strong class="text-white">Burhan</strong></p>
+          <div class="mt-3 flex flex-wrap justify-center gap-2">
+            <a href="https://www.instagram.com/burhanpw/" target="_blank" rel="noopener" class="rounded-lg bg-gradient-to-r from-orange-500 via-pink-600 to-purple-700 px-4 py-2 text-sm font-bold">Instagram</a>
+            <a href="https://discord.gg/tHA2dA6pYY" target="_blank" rel="noopener" class="rounded-lg bg-indigo-500 px-4 py-2 text-sm font-bold">Discord</a>
+            <a href="https://github.com/BurhanYslmn/Pixel-World-World-Designer" target="_blank" rel="noopener" class="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-bold">GitHub</a>
+          </div>
+        </footer>
+      </main>
+
+      <aside id="assetPanel" class="min-w-0 overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 p-3 shadow-xl lg:sticky lg:top-3 lg:block lg:max-h-[calc(100dvh-1.5rem)]">
+        <div class="flex items-center justify-between border-b border-slate-700 pb-2">
+          <div>
+            <h2 class="text-sm font-bold text-green-400 sm:text-base" data-i18n="assets">Pixel Worlds Assets</h2>
+            <p id="assetCountLabel" class="text-[11px] text-slate-500"></p>
+          </div>
+          <button id="closeAssetPanelBtn" type="button" class="rounded-lg bg-slate-700 px-3 py-2 text-xs font-bold hover:bg-slate-600 lg:hidden"><span data-i18n="close">Close</span></button>
+        </div>
+        <div id="assetCategories" class="mt-3 grid grid-cols-2 gap-1.5"></div>
+        <div class="mt-3 flex gap-2">
+          <input id="assetSearch" type="search" data-i18n-placeholder="search" placeholder="Search assets..." class="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm outline-none focus:border-cyan-500">
+          <button id="clearWorldBtn" type="button" class="hidden rounded-lg bg-slate-700 px-3 text-xs font-bold hover:bg-slate-600"><span data-i18n="clearBG">Clear BG</span></button>
+        </div>
+        <div id="assetGrid" class="no-scrollbar mt-3 grid min-h-[224px] grid-cols-5 content-start gap-2 overflow-y-auto"></div>
+        <div class="mt-3 flex items-center justify-between gap-2 text-xs text-slate-400">
+          <button id="assetPrevBtn" type="button" class="rounded-lg bg-sky-600 px-4 py-2 font-bold hover:bg-sky-500 disabled:opacity-40">‹</button>
+          <span id="assetPageLabel">1 / 1</span>
+          <button id="assetNextBtn" type="button" class="rounded-lg bg-sky-600 px-4 py-2 font-bold hover:bg-sky-500 disabled:opacity-40">›</button>
+        </div>
+      </aside>
+    </div>
+  </div>
+  <button id="assetPanelToggle" type="button" class="fixed bottom-[max(1rem,env(safe-area-inset-bottom))] right-3 z-50 hidden items-center gap-2 rounded-full bg-cyan-600 px-4 py-3 text-sm font-bold shadow-2xl hover:bg-cyan-500">🧱 <span data-i18n="assetsShort">Assets</span></button>
+  <script src="./assets-manifest.js"></script>
+  <script>
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+    const escapeHtml = text => String(text ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+    const uid = () => (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`);
+    const PAGE_SIZE = 20;
+    const MAX_UNDO = 150;
+    const DRAG_LIMIT = 5;
+    const CATEGORY = {
+      blocks: { label: 'Blocks', folder: 'Blocks', layer: 1 },
+      backgrounds: { label: 'Backgrounds', folder: 'Backgrounds', layer: 0 },
+      props: { label: 'Props', folder: 'Props', layer: 2 },
+      worlds: { label: 'Worlds', folder: 'Orbs', layer: -1 }
+    };
+    const el = Object.fromEntries([
+      'app', 'toolsPanel', 'languageSelect', 'panBtn', 'eraserBtn', 'pickerBtn', 'cloneBtn', 'undoBtn',
+      'stackToggle', 'usedPalette', 'gridWidth', 'gridHeight', 'outputWidth', 'sizeLabel',
+      'createGridBtn', 'jsonInput', 'saveImageBtn', 'saveProjectBtn',
+      'blockInput', 'blockPreview', 'uploadCategory', 'worldBackgroundInput',
+      'designer', 'designerHeader', 'selectionLabel', 'zoomOutBtn', 'zoomInBtn', 'fitBtn', 'fullscreenBtn',
+      'canvasViewport', 'canvasStage', 'resultCanvas', 'selectionOverlay', 'selectionCount',
+      'clonePreview', 'clonePreviewCanvas', 'clonePreviewActions', 'confirmCloneBtn', 'cancelCloneBtn',
+      'reportSection', 'reportGrid', 'assetPanel', 'assetPanelToggle', 'closeAssetPanelBtn',
+      'assetCategories', 'assetCountLabel', 'assetSearch', 'clearWorldBtn', 'assetGrid',
+      'assetPrevBtn', 'assetNextBtn', 'assetPageLabel'
+    ].map(id => [id, $(id)]));
+    const ctx = el.resultCanvas.getContext('2d');
+    const manifest = window.PIXEL_WORLDS_ASSETS || {};
+    const images = new Map();
+    const state = {
+      cols: 80, rows: 57, map: [], zoom: 1,
+      assets: [], uploads: [], byId: new Map(), bySrc: new Map(),
+      brush: 'pan', worldAsset: null, customWorld: null,
+      category: 'blocks', page: 0, search: '',
+      undo: [], stroke: null, lastCell: '',
+      pointer: null, pointers: new Map(), pinch: null,
+      selection: null, draft: null, preview: null, renderFrame: 0, fallbackFullscreen: false,
+      lang: (navigator.language || '').toLowerCase().startsWith('tr') ? 'tr' : 'en', status: { key: 'selectAssetHint', vars: {} }
+    };
+
+    const translations = {
+      tr: {
+        madeBy: 'Hazırlayan', tools: 'Araçlar', move: 'Taşı', moveTitle: 'Dünyayı hareket ettir', eraser: 'Silgi', picker: 'Damlalık', pickerTitle: 'Blok seçici',
+        clone: 'Klonla', cloneTitle: 'Dikdörtgen alan seç ve klonla', undo: 'Geri al', undoTitle: 'Geri al / Ctrl+Z',
+        stackBlocks: 'Blokları üst üste koy', cloneHelp: 'Klonla: sürükleyip seç, kopyayı konumlandır, ✓ ile onayla.',
+        usedAssets: 'Kullanılan görseller', designer: 'World Designer', settings: 'Dünya Ayarları ve Proje',
+        widthBlocks: 'Genişlik (Blok)', heightBlocks: 'Yükseklik (Blok)', outputWidth: 'Çıktı Genişliği (px)',
+        newWorld: 'Yeni Dünya', loadProject: 'Proje Yükle', saveProject: 'Projeyi Kaydet', savePNG: 'PNG Kaydet',
+        uploadImages: 'Özel Görsel Yükle', category: 'Kategori', customBG: 'Özel Dünya Arka Planı (İsteğe bağlı)',
+        fit: 'Sığdır', fullscreen: 'Tam Ekran', exitFullscreen: 'Tam Ekrandan Çık', zoomIn: 'Yakınlaştır', zoomOut: 'Uzaklaştır',
+        canvasTitle: 'World Designer çalışma alanı', mobileHelp: 'Dokunarak çiz. Taşı ile sürükle. İki parmakla yakınlaştır. Klonla için alan seçip ✓ ile onayla.',
+        assets: 'Pixel Worlds Görselleri', assetsShort: 'Görseller', close: 'Kapat', search: 'Görsel ara...', clearBG: 'Arka Planı Sil',
+        catAll: 'Tümü', catBlocks: 'Bloklar', catBackgrounds: 'Arka Planlar', catProps: 'Eşyalar', catWorlds: 'Dünyalar',
+        noAssets: 'Görsel bulunamadı.', noUsedAssets: 'Henüz görsel yerleştirilmedi.', removeAsset: 'Görseli kaldır',
+        matchingAssets: '{count} eşleşen görsel', sizeInfo: '{cols} × {rows} blok → {width} × {height} px. Blok ölçüleri Yeni Dünya ile uygulanır.',
+        selectAssetHint: 'Katalogdan bir görsel seçin.', toolPan: 'Taşı: sürükleyerek hareket ettir.',
+        toolEraser: 'Silgi: sürükleyerek sil.', toolPicker: 'Damlalık: bir görsele dokunarak seç.',
+        toolClone: 'Klonla: kopyalanacak alanı sürükleyerek seç.', worldSelected: 'Dünya arka planı: {name}',
+        assetSelected: '{category}: {name}', cloneSelected: '{w} × {h} hücre seçildi. Kopyayı yerleştirmek için bir konuma dokun.',
+        clonePreviewHint: 'Klon önizlemesi: basılı tutup sürükle; ✓ onaylar, × iptal eder.',
+        clonePasted: '{w} × {h} alanı {x}, {y} konumuna klonlandı. Tekrar klonlamak için konum seç.',
+        cloneCanceled: 'Klon yerleştirme iptal edildi. Yeni bir konum seçebilirsiniz.',
+        projectLoaded: 'Proje yüklendi. {cols} × {rows} dünyasını düzenlemeye devam edebilirsiniz.',
+        newWorldConfirm: 'Yeni dünya oluşturulsun mu? Kaydedilmemiş değişiklikler silinecek.',
+        projectError: 'Proje açılamadı: {error}', imageError: 'Görsel kaydedilemedi.', confirmClone: 'Klonu onayla', cancelClone: 'Klonu iptal et'
+      },
+      en: {
+        madeBy: 'Made by', tools: 'Tools', move: 'Move', moveTitle: 'Move / Pan', eraser: 'Eraser', picker: 'Picker', pickerTitle: 'Color Picker',
+        clone: 'Clone', cloneTitle: 'Select and clone area', undo: 'Undo', undoTitle: 'Undo / Ctrl+Z',
+        stackBlocks: 'Stack Blocks', cloneHelp: 'Clone: drag to select, position the copy, then confirm with ✓.',
+        usedAssets: 'Used Assets', designer: 'World Designer', settings: 'World Settings & Project',
+        widthBlocks: 'Width (Blocks)', heightBlocks: 'Height (Blocks)', outputWidth: 'Output Width (px)',
+        newWorld: 'New World', loadProject: 'Load Project', saveProject: 'Save Project', savePNG: 'Save PNG',
+        uploadImages: 'Upload Custom Images', category: 'Category', customBG: 'Custom World Background (Optional)',
+        fit: 'Fit', fullscreen: 'Fullscreen', exitFullscreen: 'Exit Fullscreen', zoomIn: 'Zoom in', zoomOut: 'Zoom out',
+        canvasTitle: 'World Designer canvas', mobileHelp: 'Tap to draw. Drag with Move to pan. Pinch to zoom. Clone: select an area, then confirm ✓.',
+        assets: 'Pixel Worlds Assets', assetsShort: 'Assets', close: 'Close', search: 'Search assets...', clearBG: 'Clear BG',
+        catAll: 'All', catBlocks: 'Blocks', catBackgrounds: 'Backgrounds', catProps: 'Props', catWorlds: 'Worlds',
+        noAssets: 'No assets found.', noUsedAssets: 'No assets placed yet.', removeAsset: 'Remove asset',
+        matchingAssets: '{count} matching assets', sizeInfo: '{cols} × {rows} blocks → {width} × {height} px. New World applies block dimensions.',
+        selectAssetHint: 'Select an asset from the catalog.', toolPan: 'Move: drag to pan.',
+        toolEraser: 'Eraser: drag to erase.', toolPicker: 'Picker: tap an asset to select it.',
+        toolClone: 'Clone: drag over an area to select it.', worldSelected: 'World background: {name}',
+        assetSelected: '{category}: {name}', cloneSelected: 'Selected {w} × {h} cells. Tap a destination to preview the copy.',
+        clonePreviewHint: 'Clone preview: press and drag to move; ✓ confirms, × cancels.',
+        clonePasted: 'Cloned {w} × {h} cells at {x}, {y}. Tap to preview another copy.',
+        cloneCanceled: 'Clone placement canceled. Choose another destination.',
+        projectLoaded: 'Project loaded. Continue editing {cols} × {rows} blocks.',
+        newWorldConfirm: 'Create a new world? Unsaved changes will be lost.',
+        projectError: 'Unable to open project: {error}', imageError: 'Could not save the image.', confirmClone: 'Confirm clone', cancelClone: 'Cancel clone'
+      }
+    };
+    const t = (key, vars = {}) => (translations[state.lang]?.[key] || translations.en[key] || key)
+      .replace(/\{(\w+)\}/g, (_, name) => String(vars[name] ?? ''));
+    function setStatus(key, vars = {}) {
+      state.status = { key, vars };
+      el.selectionLabel.textContent = t(key, vars);
+    }
+    function applyLanguage() {
+      document.documentElement.lang = state.lang;
+      el.languageSelect.value = state.lang;
+      document.querySelectorAll('[data-i18n]').forEach(node => { node.textContent = t(node.dataset.i18n); });
+      document.querySelectorAll('[data-i18n-title]').forEach(node => { node.title = t(node.dataset.i18nTitle); });
+      document.querySelectorAll('[data-i18n-aria]').forEach(node => { node.setAttribute('aria-label', t(node.dataset.i18nAria)); });
+      document.querySelectorAll('[data-i18n-placeholder]').forEach(node => { node.placeholder = t(node.dataset.i18nPlaceholder); });
+      setStatus(state.status.key, state.status.vars);
+      updateSizeLabel();
+      syncFullscreen();
+      renderDataPanels();
+      renderUploads();
+    }
+    function prettyName(name) {
+      return String(name).replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, char => char.toUpperCase());
+    }
+    function assetPath(category, filename) {
+      return `${CATEGORY[category].folder}/${encodeURIComponent(filename)}`;
+    }
+    function registerAsset(asset, uploaded = false) {
+      state.byId.set(asset.id, asset);
+      state.bySrc.set(asset.src, asset);
+      if (uploaded) state.uploads.push(asset);
+      return asset;
+    }
+    function buildCatalog() {
+      for (const category of Object.keys(CATEGORY)) {
+        for (const file of (manifest[category] || [])) {
+          const asset = registerAsset({
+            id: `builtin:${category}:${file}`, name: prettyName(file),
+            src: assetPath(category, file), category, builtIn: true
+          });
+          state.assets.push(asset);
+        }
+      }
+    }
+    function categoryFromSource(src) {
+      const path = String(src || '').toLowerCase();
+      if (path.includes('backgrounds/')) return 'backgrounds';
+      if (path.includes('props/')) return 'props';
+      if (path.includes('orbs/')) return 'worlds';
+      return 'blocks';
+    }
+    function selectedCategory(item) {
+      return CATEGORY[item?.category] ? item.category : 'blocks';
+    }
+    function getImage(src) {
+      if (!src) return null;
+      if (!images.has(src)) {
+        const img = new Image();
+        img.onload = () => { requestRender(); if (state.selection) updateClonePreviewArt(); };
+        img.src = src;
+        images.set(src, img);
+      }
+      const img = images.get(src);
+      return img.complete && img.naturalWidth > 0 ? img : null;
+    }
+    function readDataUrl(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+    const blankMap = (cols, rows) => Array.from({ length: rows }, () => Array.from({ length: cols }, () => []));
+    const cloneStack = stack => stack.map(item => ({ id: item.id, name: item.name, src: item.src, category: item.category }));
+    const cellStack = (x, y) => state.map[y]?.[x] || [];
+    const layerOf = item => CATEGORY[item.category]?.layer ?? 1;
+    const sortedStack = stack => stack.map((item, index) => ({ item, index })).sort((a, b) => layerOf(a.item) - layerOf(b.item) || a.index - b.index).map(entry => entry.item);
+    const topVisible = (x, y) => sortedStack(cellStack(x, y)).at(-1);
+    const outputWidth = () => clamp(parseInt(el.outputWidth.value, 10) || 2560, 16, 4096);
+    const inputSize = () => ({
+      cols: clamp(parseInt(el.gridWidth.value, 10) || 80, 8, 128),
+      rows: clamp(parseInt(el.gridHeight.value, 10) || 57, 8, 128)
+    });
+    function updateSizeLabel() {
+      const { cols, rows } = inputSize();
+      el.sizeLabel.textContent = t('sizeInfo', { cols, rows, width: outputWidth(), height: Math.round(outputWidth() * rows / cols) });
+    }
+    function setupCanvas() {
+      el.resultCanvas.width = outputWidth();
+      el.resultCanvas.height = Math.max(1, Math.round(outputWidth() * state.rows / state.cols));
+      ctx.imageSmoothingEnabled = false;
+      requestAnimationFrame(() => fitCanvas(true));
+    }
+    function cellRect(x, y) {
+      const width = el.resultCanvas.width;
+      const height = el.resultCanvas.height;
+      const x0 = Math.round(x * width / state.cols);
+      const y0 = Math.round(y * height / state.rows);
+      return { x: x0, y: y0,
+        w: Math.round((x + 1) * width / state.cols) - x0,
+        h: Math.round((y + 1) * height / state.rows) - y0 };
+    }
+    function gridPosition(event) {
+      const rect = el.resultCanvas.getBoundingClientRect();
+      if (!rect.width || !rect.height) return null;
+      const x = Math.floor((event.clientX - rect.left) * state.cols / rect.width);
+      const y = Math.floor((event.clientY - rect.top) * state.rows / rect.height);
+      return x >= 0 && y >= 0 && x < state.cols && y < state.rows ? { x, y } : null;
+    }
+    function fitCanvas(center = false) {
+      const canvas = el.resultCanvas;
+      const viewport = el.canvasViewport;
+      const availableW = Math.max(1, viewport.clientWidth);
+      const availableH = Math.max(1, viewport.clientHeight);
+      if (!availableW || !availableH) return;
+      const scale = clamp(Math.min(availableW / canvas.width, availableH / canvas.height) * state.zoom, .04, 20);
+      const width = Math.max(1, Math.round(canvas.width * scale));
+      const height = Math.max(1, Math.round(canvas.height * scale));
+      const stageW = Math.max(availableW, width);
+      const stageH = Math.max(availableH, height);
+      el.canvasStage.style.width = `${stageW}px`;
+      el.canvasStage.style.height = `${stageH}px`;
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      canvas.style.left = `${Math.round((stageW - width) / 2)}px`;
+      canvas.style.top = `${Math.round((stageH - height) / 2)}px`;
+      updateSelectionOverlay();
+      if (center) requestAnimationFrame(() => {
+        viewport.scrollLeft = Math.max(0, (viewport.scrollWidth - viewport.clientWidth) / 2);
+        viewport.scrollTop = Math.max(0, (viewport.scrollHeight - viewport.clientHeight) / 2);
+      });
+    }
+    function requestRender() {
+      cancelAnimationFrame(state.renderFrame);
+      state.renderFrame = requestAnimationFrame(() => renderScene(false));
+    }
+    function activeWorld() { return state.customWorld || state.worldAsset; }
+    function renderScene(exporting = false) {
+      const canvas = el.resultCanvas;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = false;
+      const world = activeWorld();
+      const image = world && getImage(world.src);
+      if (image) {
+        const scale = Math.max(canvas.width / image.width, canvas.height / image.height);
+        const sw = canvas.width / scale;
+        const sh = canvas.height / scale;
+        ctx.drawImage(image, (image.width - sw) / 2, (image.height - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height);
+      } else {
+        for (let y = 0; y < state.rows; y++) {
+          for (let x = 0; x < state.cols; x++) {
+            const r = cellRect(x, y);
+            ctx.fillStyle = (x + y) % 2 ? '#16213e' : '#1a1a2e';
+            ctx.fillRect(r.x, r.y, r.w, r.h);
+          }
+        }
+      }
+      for (let y = 0; y < state.rows; y++) {
+        for (let x = 0; x < state.cols; x++) {
+          const stack = cellStack(x, y);
+          if (!stack.length) continue;
+          const r = cellRect(x, y);
+          for (const asset of sortedStack(stack)) {
+            const img = getImage(asset.src);
+            if (img) ctx.drawImage(img, r.x, r.y, r.w, r.h);
+          }
+        }
+      }
+      const rect = canvas.getBoundingClientRect();
+      const lineX = exporting || !rect.width ? 1 : Math.max(1, Math.round(canvas.width / rect.width));
+      const lineY = exporting || !rect.height ? 1 : Math.max(1, Math.round(canvas.height / rect.height));
+      ctx.fillStyle = 'rgba(255,255,255,.24)';
+      for (let x = 1; x < state.cols; x++) {
+        const line = Math.round(x * canvas.width / state.cols);
+        ctx.fillRect(line - Math.floor(lineX / 2), 0, lineX, canvas.height);
+      }
+      for (let y = 1; y < state.rows; y++) {
+        const line = Math.round(y * canvas.height / state.rows);
+        ctx.fillRect(0, line - Math.floor(lineY / 2), canvas.width, lineY);
+      }
+    }
+    function allAssets() { return [...state.assets, ...state.uploads]; }
+    function updateToolHighlight() {
+      const names = { pan: 'panBtn', eraser: 'eraserBtn', picker: 'pickerBtn', clone: 'cloneBtn' };
+      for (const id of ['panBtn', 'eraserBtn', 'pickerBtn', 'cloneBtn']) {
+        el[id].classList.toggle('selected-item', id === names[state.brush]);
+      }
+    }
+    function selectTool(tool) {
+      if (tool === 'clone') {
+        if (state.brush === 'clone') resetSelection();
+        state.brush = 'clone';
+        setStatus('toolClone');
+      } else {
+        state.brush = tool;
+        resetSelection();
+        setStatus(tool === 'pan' ? 'toolPan' : tool === 'eraser' ? 'toolEraser' : 'toolPicker');
+      }
+      updateToolHighlight();
+      renderAssetPanel();
+      renderUploads();
+      renderUsedPalette();
+    }
+    function selectAsset(asset) {
+      if (!asset) return;
+      if (asset.category === 'worlds') {
+        if (activeWorld()?.src === asset.src) return;
+        pushWorldUndo();
+        state.worldAsset = asset;
+        state.customWorld = null;
+        setStatus('worldSelected', { name: asset.name });
+        requestRender();
+      } else {
+        state.brush = asset;
+        resetSelection();
+        setStatus('assetSelected', { category: t(`cat${asset.category[0].toUpperCase()}${asset.category.slice(1)}`), name: asset.name });
+        updateToolHighlight();
+      }
+      renderAssetPanel();
+      renderUploads();
+      renderUsedPalette();
+    }
+    function formatCount(n) { return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n); }
+    function renderAssetPanel() {
+      const assets = allAssets();
+      el.assetCategories.innerHTML = ['all', ...Object.keys(CATEGORY)].map(key => {
+        const label = t(key === 'all' ? 'catAll' : `cat${key[0].toUpperCase()}${key.slice(1)}`);
+        const n = key === 'all' ? assets.length : assets.filter(a => a.category === key).length;
+        const active = state.category === key;
+        return `<button data-category="${key}" type="button" class="rounded-lg border px-2 py-2 text-[11px] font-bold ${active ? 'border-cyan-400 bg-cyan-600 text-white' : 'border-slate-700 bg-slate-950 text-slate-300 hover:bg-slate-800'}">${label} (${formatCount(n)})</button>`;
+      }).join('');
+      const filter = state.search.trim().toLowerCase();
+      const matches = assets.filter(asset => (state.category === 'all' || asset.category === state.category) && (!filter || asset.name.toLowerCase().includes(filter)));
+      const totalPages = Math.max(1, Math.ceil(matches.length / PAGE_SIZE));
+      state.page = clamp(state.page, 0, totalPages - 1);
+      el.assetCountLabel.textContent = t('matchingAssets', { count: matches.length });
+      const visible = matches.slice(state.page * PAGE_SIZE, (state.page + 1) * PAGE_SIZE);
+      el.assetGrid.innerHTML = visible.length ? visible.map(asset => {
+        const active = asset.category === 'worlds' ? activeWorld()?.id === asset.id : state.brush?.id === asset.id;
+        return `<button type="button" data-asset-id="${escapeHtml(asset.id)}" title="${escapeHtml(asset.name)}" class="aspect-square overflow-hidden rounded-lg border-2 border-transparent bg-slate-950 p-0 ${active ? 'selected-item' : ''}"><img src="${escapeHtml(asset.src)}" alt="${escapeHtml(asset.name)}" loading="lazy" decoding="async" class="pixelated h-full w-full object-contain"></button>`;
+      }).join('') : `<p class="col-span-5 m-auto py-12 text-xs text-slate-500">${t('noAssets')}</p>`;
+      el.assetPrevBtn.disabled = state.page === 0;
+      el.assetNextBtn.disabled = state.page === totalPages - 1;
+      el.assetPageLabel.textContent = `${state.page + 1} / ${totalPages}`;
+      el.clearWorldBtn.classList.toggle('hidden', !activeWorld());
+    }
+    function renderUploads() {
+      el.blockPreview.innerHTML = state.uploads.map(asset => `<div class="relative h-12 w-12 shrink-0">
+        <button data-upload-id="${escapeHtml(asset.id)}" type="button" title="${escapeHtml(asset.name)}" class="h-11 w-11 overflow-hidden rounded-lg border-2 border-transparent bg-slate-900 ${state.brush?.id === asset.id ? 'selected-item' : ''}"><img src="${escapeHtml(asset.src)}" alt="${escapeHtml(asset.name)}" class="pixelated h-full w-full object-contain"></button>
+        <button data-remove-upload="${escapeHtml(asset.id)}" type="button" title="${escapeHtml(t('removeAsset'))}" class="absolute -right-1 -top-1 h-5 w-5 rounded-full bg-red-500 text-xs font-bold">×</button>
+      </div>`).join('');
+    }
+    function recount() {
+      const counts = new Map();
+      for (const row of state.map) for (const stack of row) for (const item of stack) {
+        const key = `${item.category}|${item.src}`;
+        const entry = counts.get(key) || { ...item, count: 0 };
+        entry.count++;
+        counts.set(key, entry);
+      }
+      return [...counts.values()].sort((a, b) => b.count - a.count);
+    }
+    function renderUsedPalette() {
+      const counts = recount().slice(0, 24);
+      el.usedPalette.innerHTML = counts.length ? counts.map(a => `<button data-used-src="${escapeHtml(a.src)}" title="${escapeHtml(a.name)} (${a.count})" class="h-10 w-10 overflow-hidden rounded-lg border-2 border-transparent bg-slate-950 ${state.brush?.src === a.src ? 'selected-item' : ''}"><img src="${escapeHtml(a.src)}" alt="${escapeHtml(a.name)}" class="pixelated h-full w-full object-contain"></button>`).join('') : `<span class="text-xs text-slate-500">${t('noUsedAssets')}</span>`;
+    }
+    function renderReport() {
+      const counts = recount();
+      el.reportSection.classList.toggle('hidden', !counts.length);
+      el.reportGrid.innerHTML = counts.map(a => `<div class="min-w-0 rounded-lg border border-slate-700 bg-slate-900 p-2 text-center"><img src="${escapeHtml(a.src)}" alt="${escapeHtml(a.name)}" class="pixelated mx-auto h-10 w-10 rounded object-contain"><p title="${escapeHtml(a.name)}" class="mt-1 truncate text-xs text-slate-400">${escapeHtml(a.name)}</p><strong class="text-sm">${a.count}x</strong></div>`).join('');
+    }
+    function renderDataPanels() {
+      renderUsedPalette();
+      renderReport();
+      renderAssetPanel();
+    }
+    function updateUndoButton() {
+      el.undoBtn.classList.toggle('disabled-tool', !state.undo.length);
+      el.undoBtn.disabled = !state.undo.length;
+    }
+    function beginStroke() { state.stroke = new Map(); state.lastCell = ''; }
+    function rememberCell(x, y) {
+      if (!state.stroke) beginStroke();
+      const key = `${x}:${y}`;
+      if (state.stroke.has(key)) return false;
+      state.stroke.set(key, { x, y, stack: cloneStack(cellStack(x, y)) });
+      return true;
+    }
+    function commitStroke() {
+      if (state.stroke?.size) {
+        state.undo.push({ type: 'cells', changes: [...state.stroke.values()] });
+        if (state.undo.length > MAX_UNDO) state.undo.shift();
+        requestRender();
+        renderDataPanels();
+      }
+      state.stroke = null;
+      state.lastCell = '';
+      updateUndoButton();
+    }
+    function pushWorldUndo() {
+      state.undo.push({ type: 'world', worldAsset: state.worldAsset, customWorld: state.customWorld });
+      if (state.undo.length > MAX_UNDO) state.undo.shift();
+      updateUndoButton();
+    }
+    function undo() {
+      const action = state.undo.pop();
+      if (!action) return;
+      if (action.type === 'world') {
+        state.worldAsset = action.worldAsset;
+        state.customWorld = action.customWorld;
+      } else {
+        for (const change of action.changes) state.map[change.y][change.x] = cloneStack(change.stack);
+      }
+      requestRender();
+      renderDataPanels();
+      updateUndoButton();
+    }
+    function categoryMatches(stack, category) {
+      return stack.map((item, index) => ({ item, index })).filter(entry => entry.item.category === category);
+    }
+    function modifyCell(position) {
+      const key = `${position.x}:${position.y}`;
+      if (state.lastCell === key) return;
+      state.lastCell = key;
+      const stack = cellStack(position.x, position.y);
+      if (state.brush === 'eraser') {
+        if (!stack.length || !rememberCell(position.x, position.y)) return;
+        stack.splice(stack.lastIndexOf(topVisible(position.x, position.y)), 1);
+        requestRender();
+        return;
+      }
+      const asset = state.brush;
+      if (!asset || typeof asset !== 'object' || asset.category === 'worlds') return;
+      if (!el.stackToggle.checked && categoryMatches(stack, asset.category).length) return;
+      if (!rememberCell(position.x, position.y)) return;
+      stack.push({ id: asset.id, name: asset.name, src: asset.src, category: asset.category });
+      requestRender();
+    }
+    function deleteCategoryAt(position, category) {
+      const stack = cellStack(position.x, position.y);
+      const items = categoryMatches(stack, category);
+      if (!items.length) return;
+      beginStroke();
+      rememberCell(position.x, position.y);
+      stack.splice(items.at(-1).index, 1);
+      commitStroke();
+    }
+    function pickCell(position) {
+      const item = topVisible(position.x, position.y);
+      if (!item) return;
+      const asset = state.byId.get(item.id) || state.bySrc.get(item.src);
+      if (asset) selectAsset(asset);
+    }
+    function resetSelection() {
+      state.selection = null;
+      state.draft = null;
+      state.preview = null;
+      updateSelectionOverlay();
+    }
+    function regionBetween(a, b) {
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      return { x, y, w: Math.abs(a.x - b.x) + 1, h: Math.abs(a.y - b.y) + 1 };
+    }
+    function updateSelectionOverlay() {
+      const bounds = state.draft || state.selection?.bounds;
+      const canvas = el.resultCanvas;
+      const canvasW = parseFloat(canvas.style.width) || canvas.width;
+      const canvasH = parseFloat(canvas.style.height) || canvas.height;
+      const left = parseFloat(canvas.style.left) || 0;
+      const top = parseFloat(canvas.style.top) || 0;
+      function place(node, region) {
+        node.style.left = `${left + region.x * canvasW / state.cols}px`;
+        node.style.top = `${top + region.y * canvasH / state.rows}px`;
+        node.style.width = `${region.w * canvasW / state.cols}px`;
+        node.style.height = `${region.h * canvasH / state.rows}px`;
+      }
+      const showSelection = state.brush === 'clone' && bounds;
+      el.selectionOverlay.classList.toggle('hidden', !showSelection);
+      if (showSelection) {
+        place(el.selectionOverlay, bounds);
+        el.selectionCount.textContent = `${bounds.w} × ${bounds.h}`;
+      }
+      const showPreview = state.brush === 'clone' && state.selection && state.preview;
+      el.clonePreview.classList.toggle('hidden', !showPreview);
+      if (showPreview) {
+        place(el.clonePreview, { ...state.preview, w: state.selection.bounds.w, h: state.selection.bounds.h });
+        const previewRight = left + (state.preview.x + state.selection.bounds.w) * canvasW / state.cols;
+        const previewTop = top + state.preview.y * canvasH / state.rows;
+        const viewportRight = el.canvasViewport.scrollLeft + el.canvasViewport.clientWidth;
+        const viewportTop = el.canvasViewport.scrollTop;
+        const roomOnRight = previewRight + 90 <= viewportRight;
+        el.clonePreviewActions.style.left = roomOnRight ? 'calc(100% + 6px)' : 'auto';
+        el.clonePreviewActions.style.right = roomOnRight ? 'auto' : 'calc(100% + 6px)';
+        el.clonePreviewActions.style.top = previewTop - viewportTop < 42 ? '4px' : '-39px';
+      }
+    }
+    function updateClonePreviewArt() {
+      const selection = state.selection;
+      if (!selection) return;
+      const canvas = el.clonePreviewCanvas;
+      const size = Math.max(8, Math.min(32, Math.floor(1536 / Math.max(selection.bounds.w, selection.bounds.h))));
+      canvas.width = selection.bounds.w * size;
+      canvas.height = selection.bounds.h * size;
+      const painter = canvas.getContext('2d');
+      painter.imageSmoothingEnabled = false;
+      for (let dy = 0; dy < selection.bounds.h; dy++) for (let dx = 0; dx < selection.bounds.w; dx++) {
+        for (const item of sortedStack(selection.cells[dy][dx])) {
+          const img = getImage(item.src);
+          if (img) painter.drawImage(img, dx * size, dy * size, size, size);
+        }
+      }
+    }
+    function captureRegion(bounds) {
+      const cells = Array.from({ length: bounds.h }, (_, dy) => Array.from({ length: bounds.w }, (_, dx) => cloneStack(cellStack(bounds.x + dx, bounds.y + dy))));
+      state.selection = { bounds, cells };
+      state.draft = null;
+      state.preview = null;
+      updateClonePreviewArt();
+      setStatus('cloneSelected', { w: bounds.w, h: bounds.h });
+      updateSelectionOverlay();
+    }
+    function moveClonePreview(position) {
+      if (!state.selection || !position) return;
+      state.preview = {
+        x: clamp(position.x, 0, state.cols - state.selection.bounds.w),
+        y: clamp(position.y, 0, state.rows - state.selection.bounds.h)
+      };
+      setStatus('clonePreviewHint');
+      updateSelectionOverlay();
+    }
+    function sameStack(a, b) {
+      return a.length === b.length && a.every((item, i) => item.id === b[i].id && item.category === b[i].category && item.src === b[i].src);
+    }
+    function pasteRegion(position) {
+      const selection = state.selection;
+      if (!selection || !position) return;
+      beginStroke();
+      for (let dy = 0; dy < selection.bounds.h; dy++) {
+        for (let dx = 0; dx < selection.bounds.w; dx++) {
+          const x = position.x + dx;
+          const y = position.y + dy;
+          if (x >= state.cols || y >= state.rows) continue;
+          const source = selection.cells[dy][dx];
+          if (sameStack(source, cellStack(x, y))) continue;
+          rememberCell(x, y);
+          state.map[y][x] = cloneStack(source);
+        }
+      }
+      commitStroke();
+      state.preview = null;
+      updateSelectionOverlay();
+      setStatus('clonePasted', { w: selection.bounds.w, h: selection.bounds.h, x: position.x, y: position.y });
+    }
+    function confirmClone() {
+      if (state.brush === 'clone' && state.preview) pasteRegion({ ...state.preview });
+    }
+    function cancelClone() {
+      state.preview = null;
+      updateSelectionOverlay();
+      setStatus('cloneCanceled');
+    }
+    function createWorld(confirmReset = true) {
+      const changed = state.map.some(row => row.some(stack => stack.length)) || Boolean(activeWorld());
+      if (confirmReset && changed && !confirm(t('newWorldConfirm'))) return;
+      const { cols, rows } = inputSize();
+      state.cols = cols;
+      state.rows = rows;
+      state.map = blankMap(cols, rows);
+      state.undo = [];
+      state.worldAsset = null;
+      state.customWorld = null;
+      state.zoom = 1;
+      el.worldBackgroundInput.value = '';
+      resetSelection();
+      setupCanvas();
+      requestRender();
+      selectTool('pan');
+      renderDataPanels();
+      updateUndoButton();
+      updateSizeLabel();
+    }
+    function resetDynamicAssets() {
+      for (const asset of state.uploads) {
+        state.byId.delete(asset.id);
+        if (state.bySrc.get(asset.src) === asset) state.bySrc.delete(asset.src);
+      }
+      state.uploads = [];
+    }
+    function addImportedAsset(info) {
+      if (!info?.src || typeof info.src !== 'string') return null;
+      const known = state.byId.get(info.id) || state.bySrc.get(info.src);
+      if (known) return known;
+      const category = CATEGORY[info.category] && info.category !== 'worlds' ? info.category : categoryFromSource(info.src);
+      if (category === 'worlds') return null;
+      return registerAsset({ id: info.id || `import:${uid()}`, src: info.src, name: info.name || info.blockName || 'Imported Asset', category, builtIn: false }, true);
+    }
+    async function loadProject(file) {
+      try {
+        const project = JSON.parse(await file.text());
+        const cols = Number(project.width);
+        const rows = Number(project.height);
+        if (!Number.isInteger(cols) || !Number.isInteger(rows) || cols < 1 || cols > 128 || rows < 1 || rows > 128 || !Array.isArray(project.matrix) || project.matrix.length > 250000) throw new Error('Invalid dimensions or matrix');
+        resetDynamicAssets();
+        state.cols = cols;
+        state.rows = rows;
+        state.map = blankMap(cols, rows);
+        state.worldAsset = null;
+        state.customWorld = null;
+        state.undo = [];
+        state.zoom = 1;
+        state.pointers.clear();
+        state.pointer = null;
+        state.pinch = null;
+        el.gridWidth.value = cols;
+        el.gridHeight.value = rows;
+        el.outputWidth.value = clamp(Number(project.outputWidth || project.outputWidthPx || 2560), 16, 4096);
+        el.stackToggle.checked = Boolean(project.stackBlocks);
+        for (const asset of (Array.isArray(project.uploads) ? project.uploads : [])) addImportedAsset(asset);
+        for (const asset of (Array.isArray(project.assets) ? project.assets : [])) addImportedAsset(asset);
+        const world = project.world;
+        if (world?.src) {
+          const known = state.byId.get(world.id) || state.bySrc.get(world.src);
+          if (known?.category === 'worlds') state.worldAsset = known;
+          else state.customWorld = { id: world.id || `project-world:${uid()}`, name: world.name || 'World Background', src: world.src, category: 'worlds' };
+        }
+        const items = project.matrix.slice().sort((a, b) => (Number(a.layer) || 0) - (Number(b.layer) || 0));
+        for (const pixel of items) {
+          const x = Number(pixel.x), y = Number(pixel.y);
+          if (!Number.isInteger(x) || !Number.isInteger(y) || x < 0 || y < 0 || x >= cols || y >= rows) continue;
+          const category = CATEGORY[pixel.category] && pixel.category !== 'worlds' ? pixel.category : categoryFromSource(pixel.src);
+          const asset = state.byId.get(pixel.id) || (pixel.src && state.bySrc.get(pixel.src)) || addImportedAsset({ id: pixel.id, name: pixel.blockName || pixel.name, src: pixel.src, category });
+          if (asset) state.map[y][x].push({ id: asset.id, name: asset.name, src: asset.src, category: asset.category });
+        }
+        resetSelection();
+        setupCanvas();
+        requestRender();
+        selectTool('pan');
+        renderUploads();
+        renderDataPanels();
+        updateUndoButton();
+        updateSizeLabel();
+        setStatus('projectLoaded', { cols, rows });
+        document.querySelector('#worldSettings').open = false;
+      } catch (error) {
+        alert(t('projectError', { error: error.message }));
+      } finally {
+        el.jsonInput.value = '';
+      }
+    }
+    function projectData() {
+      const matrix = [];
+      const used = new Map();
+      for (let y = 0; y < state.rows; y++) for (let x = 0; x < state.cols; x++) {
+        cellStack(x, y).forEach((item, layer) => {
+          used.set(item.id, { id: item.id, name: item.name, category: item.category, src: item.src });
+          matrix.push({ x, y, layer, id: item.id });
+        });
+      }
+      const world = activeWorld();
+      return {
+        version: 3, type: 'pixel-worlds-designer',
+        width: state.cols, height: state.rows, outputWidth: el.resultCanvas.width,
+        stackBlocks: el.stackToggle.checked,
+        world: world ? { id: world.id, name: world.name, src: world.src, category: 'worlds' } : null,
+        assets: [...used.values()],
+        uploads: state.uploads.filter(a => !used.has(a.id)).map(a => ({ id: a.id, name: a.name, src: a.src, category: a.category })),
+        matrix
+      };
+    }
+    function download(url, filename) {
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    function saveProject() {
+      const blob = new Blob([JSON.stringify(projectData())], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      download(url, `pixel-world-${Date.now()}.json`);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }
+    function waitForImage(src) {
+      const ready = getImage(src);
+      if (ready) return Promise.resolve();
+      const img = images.get(src);
+      if (img.complete) return Promise.resolve();
+      return new Promise(resolve => {
+        img.addEventListener('load', resolve, { once: true });
+        img.addEventListener('error', resolve, { once: true });
+      });
+    }
+    async function saveImage() {
+      const sources = new Set();
+      if (activeWorld()) sources.add(activeWorld().src);
+      for (const row of state.map) for (const stack of row) for (const item of stack) sources.add(item.src);
+      await Promise.all([...sources].map(waitForImage));
+      renderScene(true);
+      el.resultCanvas.toBlob(blob => {
+        if (!blob) return alert(t('imageError'));
+        const url = URL.createObjectURL(blob);
+        download(url, `pixel-world-${Date.now()}.png`);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        requestRender();
+      }, 'image/png');
+    }
+    async function addUploads(files) {
+      const category = el.uploadCategory.value;
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) continue;
+        const src = await readDataUrl(file);
+        registerAsset({ id: `upload:${uid()}`, name: prettyName(file.name), src, category, builtIn: false }, true);
+      }
+      renderUploads();
+      renderAssetPanel();
+    }
+    function removeUpload(id) {
+      const asset = state.byId.get(id);
+      if (!asset) return;
+      state.uploads = state.uploads.filter(item => item.id !== id);
+      state.byId.delete(id);
+      if (state.bySrc.get(asset.src) === asset) state.bySrc.delete(asset.src);
+      if (state.brush?.id === id) selectTool('pan');
+      renderUploads();
+      renderAssetPanel();
+    }
+    function clearWorldBackground() {
+      if (!activeWorld()) return;
+      pushWorldUndo();
+      state.worldAsset = null;
+      state.customWorld = null;
+      el.worldBackgroundInput.value = '';
+      requestRender();
+      renderAssetPanel();
+    }
+    function toggleAssetPanel(open) {
+      document.body.classList.toggle('asset-panel-open', open);
+    }
+    function setZoom(value, center = false) {
+      state.zoom = clamp(value, .12, 12);
+      fitCanvas(center);
+      requestRender();
+    }
+    function zoomAt(clientX, clientY, factor) {
+      const old = el.resultCanvas.getBoundingClientRect();
+      const fractionX = clamp((clientX - old.left) / Math.max(1, old.width), 0, 1);
+      const fractionY = clamp((clientY - old.top) / Math.max(1, old.height), 0, 1);
+      const next = clamp(state.zoom * factor, .12, 12);
+      if (next === state.zoom) return;
+      state.zoom = next;
+      fitCanvas(false);
+      requestAnimationFrame(() => {
+        const rect = el.resultCanvas.getBoundingClientRect();
+        el.canvasViewport.scrollLeft += rect.left + fractionX * rect.width - clientX;
+        el.canvasViewport.scrollTop += rect.top + fractionY * rect.height - clientY;
+        requestRender();
+      });
+    }
+    function syncFullscreen() {
+      const full = Boolean(document.fullscreenElement || state.fallbackFullscreen);
+      document.body.classList.toggle('app-fullscreen', full);
+      el.fullscreenBtn.textContent = `⛶ ${t(full ? 'exitFullscreen' : 'fullscreen')}`;
+      requestAnimationFrame(() => fitCanvas(true));
+    }
+    function toggleFullscreen() {
+      if (document.fullscreenElement || state.fallbackFullscreen) {
+        if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+        state.fallbackFullscreen = false;
+        syncFullscreen();
+      } else if (document.fullscreenEnabled && el.app.requestFullscreen) {
+        el.app.requestFullscreen().catch(() => { state.fallbackFullscreen = true; syncFullscreen(); });
+      } else {
+        state.fallbackFullscreen = true;
+        syncFullscreen();
+      }
+    }
+    function beginPinch() {
+      const [a, b] = [...state.pointers.values()];
+      if (!a || !b) return;
+      if (state.stroke) commitStroke();
+      state.pointer = null;
+      state.draft = null;
+      updateSelectionOverlay();
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const rect = el.resultCanvas.getBoundingClientRect();
+      state.pinch = {
+        distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)), zoom: state.zoom,
+        rx: clamp((mid.x - rect.left) / Math.max(1, rect.width), 0, 1),
+        ry: clamp((mid.y - rect.top) / Math.max(1, rect.height), 0, 1)
+      };
+    }
+    function updatePinch() {
+      if (!state.pinch || state.pointers.size < 2) return;
+      const [a, b] = [...state.pointers.values()];
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      state.zoom = clamp(state.pinch.zoom * Math.hypot(a.x - b.x, a.y - b.y) / state.pinch.distance, .12, 12);
+      fitCanvas(false);
+      const pinch = state.pinch;
+      requestAnimationFrame(() => {
+        const rect = el.resultCanvas.getBoundingClientRect();
+        el.canvasViewport.scrollLeft += rect.left + pinch.rx * rect.width - mid.x;
+        el.canvasViewport.scrollTop += rect.top + pinch.ry * rect.height - mid.y;
+      });
+    }
+    function processTap(position) {
+      if (!position) return;
+      if (state.brush === 'picker') return pickCell(position);
+      if (state.brush === 'pan') return;
+      if (state.brush === 'eraser') {
+        beginStroke(); modifyCell(position); commitStroke(); return;
+      }
+      const asset = state.brush;
+      if (!asset || typeof asset !== 'object') return;
+      if (!el.stackToggle.checked && categoryMatches(cellStack(position.x, position.y), asset.category).length) {
+        deleteCategoryAt(position, asset.category);
+      } else {
+        beginStroke(); modifyCell(position); commitStroke();
+      }
+    }
+    function handlePointerDown(event) {
+      if (event.pointerType === 'touch') {
+        state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (state.pointers.size >= 2) {
+          beginPinch();
+          event.preventDefault();
+          return;
+        }
+      }
+      try { el.canvasViewport.setPointerCapture(event.pointerId); } catch {}
+      if (event.button === 2 || state.brush === 'pan') {
+        state.pointer = { type: 'pan', id: event.pointerId, startX: event.clientX, startY: event.clientY,
+          scrollX: el.canvasViewport.scrollLeft, scrollY: el.canvasViewport.scrollTop };
+        el.canvasViewport.classList.add('is-panning');
+        event.preventDefault();
+        return;
+      }
+      if (event.button !== 0) return;
+      const position = gridPosition(event);
+      if (!position) return;
+      if (state.brush === 'clone') {
+        if (state.selection) {
+          const preview = state.preview;
+          const within = preview && position.x >= preview.x && position.y >= preview.y
+            && position.x < preview.x + state.selection.bounds.w && position.y < preview.y + state.selection.bounds.h;
+          const offsetX = within ? position.x - preview.x : 0;
+          const offsetY = within ? position.y - preview.y : 0;
+          state.pointer = { type: 'clone-move', id: event.pointerId, offsetX, offsetY, last: position };
+          moveClonePreview({ x: position.x - offsetX, y: position.y - offsetY });
+        } else {
+          state.pointer = { type: 'clone', id: event.pointerId, start: position, last: position,
+            clientX: event.clientX, clientY: event.clientY, moved: false };
+        }
+        event.preventDefault();
+        return;
+      }
+      if (event.pointerType === 'touch') {
+        state.pointer = { type: 'touch-pending', id: event.pointerId, startX: event.clientX,
+          startY: event.clientY, last: position };
+        event.preventDefault();
+        return;
+      }
+      if (state.brush === 'picker') {
+        pickCell(position);
+        return;
+      }
+      if (!el.stackToggle.checked && state.brush && typeof state.brush === 'object' && categoryMatches(cellStack(position.x, position.y), state.brush.category).length) {
+        state.pointer = { type: 'delete-pending', id: event.pointerId, start: position,
+          clientX: event.clientX, clientY: event.clientY, moved: false };
+        return;
+      }
+      beginStroke();
+      state.pointer = { type: 'paint', id: event.pointerId };
+      modifyCell(position);
+      event.preventDefault();
+    }
+    function handlePointerMove(event) {
+      if (event.pointerType === 'touch' && state.pointers.has(event.pointerId)) {
+        state.pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (state.pointers.size >= 2) {
+          if (!state.pinch) beginPinch();
+          updatePinch();
+          event.preventDefault();
+          return;
+        }
+      }
+      const action = state.pointer;
+      if (!action || action.id !== event.pointerId) return;
+      if (action.type === 'pan') {
+        el.canvasViewport.scrollLeft = action.scrollX - (event.clientX - action.startX);
+        el.canvasViewport.scrollTop = action.scrollY - (event.clientY - action.startY);
+        event.preventDefault();
+        return;
+      }
+      if (action.type === 'clone-move') {
+        const position = gridPosition(event);
+        if (position) {
+          action.last = position;
+          moveClonePreview({ x: position.x - action.offsetX, y: position.y - action.offsetY });
+        }
+        event.preventDefault();
+        return;
+      }
+      if (action.type === 'clone') {
+        const position = gridPosition(event);
+        if (position) action.last = position;
+        if (Math.hypot(event.clientX - action.clientX, event.clientY - action.clientY) > DRAG_LIMIT) action.moved = true;
+        if (action.moved) {
+          state.draft = regionBetween(action.start, action.last);
+          updateSelectionOverlay();
+        }
+        event.preventDefault();
+        return;
+      }
+      if (action.type === 'delete-pending') {
+        if (Math.hypot(event.clientX - action.clientX, event.clientY - action.clientY) > DRAG_LIMIT) action.moved = true;
+        return;
+      }
+      if (action.type === 'touch-pending') {
+        const distance = Math.hypot(event.clientX - action.startX, event.clientY - action.startY);
+        action.last = gridPosition(event) || action.last;
+        if (distance <= DRAG_LIMIT || state.brush === 'picker') return;
+        beginStroke();
+        action.type = 'paint';
+        modifyCell(action.last);
+        return;
+      }
+      if (action.type === 'paint') {
+        const position = gridPosition(event);
+        if (position) modifyCell(position);
+        event.preventDefault();
+      }
+    }
+    function handlePointerUp(event, cancelled = false) {
+      if (event.pointerType === 'touch') {
+        state.pointers.delete(event.pointerId);
+        if (state.pointers.size < 2) state.pinch = null;
+      }
+      const action = state.pointer;
+      if (!action || action.id !== event.pointerId) return;
+      if (action.type === 'paint') {
+        commitStroke();
+      } else if (!cancelled && action.type === 'touch-pending') {
+        processTap(gridPosition(event) || action.last);
+      } else if (!cancelled && action.type === 'delete-pending' && !action.moved) {
+        const position = gridPosition(event);
+        if (position?.x === action.start.x && position?.y === action.start.y) deleteCategoryAt(position, state.brush.category);
+      } else if (action.type === 'clone') {
+        if (!cancelled) {
+          if (action.moved) captureRegion(regionBetween(action.start, action.last));
+          else captureRegion(regionBetween(action.start, action.start));
+        }
+        state.draft = null;
+        updateSelectionOverlay();
+      } else if (action.type === 'clone-move') {
+        // Placement is intentionally not committed until ✓ is pressed.
+        updateSelectionOverlay();
+      }
+      state.pointer = null;
+      el.canvasViewport.classList.remove('is-panning');
+    }
+
+    buildCatalog();
+    el.createGridBtn.addEventListener('click', () => createWorld(true));
+    el.gridWidth.addEventListener('input', updateSizeLabel);
+    el.gridHeight.addEventListener('input', updateSizeLabel);
+    el.outputWidth.addEventListener('input', () => {
+      updateSizeLabel();
+      setupCanvas();
+      requestRender();
+    });
+    el.jsonInput.addEventListener('change', event => {
+      const file = event.target.files[0];
+      if (file) loadProject(file);
+    });
+    el.saveProjectBtn.addEventListener('click', saveProject);
+    el.saveImageBtn.addEventListener('click', saveImage);
+    el.panBtn.addEventListener('click', () => selectTool('pan'));
+    el.eraserBtn.addEventListener('click', () => selectTool('eraser'));
+    el.pickerBtn.addEventListener('click', () => selectTool('picker'));
+    el.cloneBtn.addEventListener('click', () => selectTool('clone'));
+    el.languageSelect.addEventListener('change', () => {
+      state.lang = el.languageSelect.value === 'en' ? 'en' : 'tr';
+      applyLanguage();
+    });
+    for (const button of [el.confirmCloneBtn, el.cancelCloneBtn]) {
+      button.addEventListener('pointerdown', event => event.stopPropagation());
+      button.addEventListener('pointerup', event => event.stopPropagation());
+    }
+    el.confirmCloneBtn.addEventListener('click', event => { event.stopPropagation(); confirmClone(); });
+    el.cancelCloneBtn.addEventListener('click', event => { event.stopPropagation(); cancelClone(); });
+    el.undoBtn.addEventListener('click', undo);
+    el.blockInput.addEventListener('change', async event => {
+      if (event.target.files.length) await addUploads(event.target.files);
+      event.target.value = '';
+    });
+    el.blockPreview.addEventListener('click', event => {
+      const remove = event.target.closest('[data-remove-upload]');
+      if (remove) return removeUpload(remove.dataset.removeUpload);
+      const item = event.target.closest('[data-upload-id]');
+      if (item) selectAsset(state.byId.get(item.dataset.uploadId));
+    });
+    el.worldBackgroundInput.addEventListener('change', async event => {
+      const file = event.target.files[0];
+      if (!file) return;
+      const src = await readDataUrl(file);
+      pushWorldUndo();
+      state.customWorld = { id: `custom-world:${uid()}`, name: prettyName(file.name), src, category: 'worlds' };
+      state.worldAsset = null;
+      requestRender();
+      renderAssetPanel();
+    });
+    el.usedPalette.addEventListener('click', event => {
+      const item = event.target.closest('[data-used-src]');
+      if (item) selectAsset(state.bySrc.get(item.dataset.usedSrc));
+    });
+    el.assetCategories.addEventListener('click', event => {
+      const button = event.target.closest('[data-category]');
+      if (!button) return;
+      state.category = button.dataset.category;
+      state.page = 0;
+      renderAssetPanel();
+    });
+    el.assetGrid.addEventListener('click', event => {
+      const item = event.target.closest('[data-asset-id]');
+      if (item) selectAsset(state.byId.get(item.dataset.assetId));
+    });
+    el.assetSearch.addEventListener('input', () => {
+      state.search = el.assetSearch.value;
+      state.page = 0;
+      renderAssetPanel();
+    });
+    el.assetPrevBtn.addEventListener('click', () => { state.page--; renderAssetPanel(); });
+    el.assetNextBtn.addEventListener('click', () => { state.page++; renderAssetPanel(); });
+    el.clearWorldBtn.addEventListener('click', clearWorldBackground);
+    el.assetPanelToggle.addEventListener('click', () => toggleAssetPanel(true));
+    el.closeAssetPanelBtn.addEventListener('click', () => toggleAssetPanel(false));
+    el.zoomOutBtn.addEventListener('click', () => setZoom(state.zoom / 1.2));
+    el.zoomInBtn.addEventListener('click', () => setZoom(state.zoom * 1.2));
+    el.fitBtn.addEventListener('click', () => setZoom(1, true));
+    el.fullscreenBtn.addEventListener('click', toggleFullscreen);
+    document.addEventListener('fullscreenchange', () => {
+      if (!document.fullscreenElement) state.fallbackFullscreen = false;
+      syncFullscreen();
+    });
+    el.canvasViewport.addEventListener('wheel', event => {
+      event.preventDefault();
+      zoomAt(event.clientX, event.clientY, event.deltaY < 0 ? 1.12 : 1 / 1.12);
+    }, { passive: false });
+    el.canvasViewport.addEventListener('contextmenu', event => event.preventDefault());
+    el.canvasViewport.addEventListener('pointerdown', handlePointerDown);
+    el.canvasViewport.addEventListener('pointermove', handlePointerMove);
+    el.canvasViewport.addEventListener('pointerup', event => handlePointerUp(event));
+    el.canvasViewport.addEventListener('pointercancel', event => handlePointerUp(event, true));
+    document.addEventListener('keydown', event => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+        event.preventDefault(); undo();
+      }
+      if (event.key === 'Escape') {
+        if (state.fallbackFullscreen) { state.fallbackFullscreen = false; syncFullscreen(); }
+        else if (state.brush === 'clone') resetSelection();
+      }
+    });
+    window.addEventListener('resize', () => requestAnimationFrame(() => fitCanvas(false)));
+    if ('ResizeObserver' in window) new ResizeObserver(() => fitCanvas(false)).observe(el.canvasViewport);
+
+    renderAssetPanel();
+    renderUploads();
+    createWorld(false);
+    applyLanguage();
+  </script>
+</body>
+</html>
