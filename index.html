@@ -46,8 +46,8 @@
     @media (min-width: 640px) { #dimensionsGrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
     body.app-fullscreen { overflow: hidden; }
     body.app-fullscreen #app { width: 100vw; max-width: none; height: 100dvh; padding: .5rem; }
-    body.app-fullscreen #layout { height: 100%; }
-    body.app-fullscreen #mainCard { height: 100%; padding: .5rem; }
+    body.app-fullscreen #layout { height: 100%; min-height: 0; grid-template-rows: minmax(0, 1fr); }
+    body.app-fullscreen #mainCard { height: 100%; min-height: 0; overflow: hidden; padding: .5rem; }
     body.app-fullscreen #title,
     body.app-fullscreen #worldSettings,
     body.app-fullscreen #reportSection,
@@ -546,6 +546,12 @@
       const fit = Math.min(viewport.clientWidth / width, viewport.clientHeight / height);
       const fill = Math.max(viewport.clientWidth / width, viewport.clientHeight / height);
       return fit > 0 ? fill / fit : 1;
+    }
+    function fullscreenPanZoom() {
+      const viewport = el.canvasViewport;
+      const w = viewport.clientWidth / el.resultCanvas.width;
+      const h = viewport.clientHeight / el.resultCanvas.height;
+      return Math.max(w, h) / Math.min(w, h) * 1.3;
     }
     function setupCanvas() {
       el.resultCanvas.width = outputWidth();
@@ -1161,10 +1167,13 @@
     }
     function syncFullscreen() {
       const full = Boolean(document.fullscreenElement || state.fallbackFullscreen);
+      const entering = full && !state.fullscreenActive;
+      state.fullscreenActive = full;
       document.body.classList.toggle('app-fullscreen', full);
       el.fullscreenBtn.textContent = `⛶ ${t(full ? 'exitFullscreen' : 'fullscreen')}`;
       requestAnimationFrame(() => {
-        if (state.autoFill) state.zoom = mobileCoverZoom();
+        if (entering) state.zoom = Math.max(state.zoom, fullscreenPanZoom());
+        else if (state.autoFill) state.zoom = full ? fullscreenPanZoom() : mobileCoverZoom();
         fitCanvas(true); syncMobileLayout();
       });
     }
@@ -1489,11 +1498,11 @@
     });
     window.addEventListener('resize', () => requestAnimationFrame(() => {
       if (!isCompact()) closeMobilePanels();
-      if (state.autoFill) state.zoom = isCompact() ? mobileCoverZoom() : 1;
+      if (state.autoFill) state.zoom = state.fullscreenActive ? fullscreenPanZoom() : mobileCoverZoom();
       fitCanvas(state.autoFill); syncMobileLayout();
     }));
     window.addEventListener('orientationchange', () => requestAnimationFrame(() => {
-      if (state.autoFill) state.zoom = mobileCoverZoom();
+      if (state.autoFill) state.zoom = state.fullscreenActive ? fullscreenPanZoom() : mobileCoverZoom();
       fitCanvas(true); syncMobileLayout();
     }));
     if ('ResizeObserver' in window) new ResizeObserver(() => fitCanvas(false)).observe(el.canvasViewport);
